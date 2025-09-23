@@ -1,0 +1,5 @@
+{
+  "name": "Générateur de Guide Local IA",
+  "description": "Une application IA qui analyse votre entreprise (site web, adresse, activité) pour trouver automatiquement des partenaires locaux pertinents et générer des fiches optimisées pour votre guide local, améliorant ainsi votre référencement géolocalisé.",
+  "requestFramePermissions": []
+}
