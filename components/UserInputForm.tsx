@@ -48,6 +48,22 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
           </div>
         </div>
         <div>
+          <label htmlFor="partnerAddress" className="block text-sm font-medium text-slate-700">
+            Adresse du client
+          </label>
+          <div className="mt-1">
+            <input
+              type="text"
+              id="partnerAddress"
+              value={partnerAddress}
+              onChange={(e) => setPartnerAddress(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
+              placeholder="Ex: 24 Avenue des Champs-Élysées, 75008 Paris"
+            />
+          </div>
+        </div>
+        <div>
           <label htmlFor="description" className="block text-sm font-medium text-slate-700">
             Description de votre activité
           </label>
@@ -71,24 +87,7 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
                 <span className="text-2xl font-bold text-blue-600">2</span>
             </div>
             <h2 className="text-2xl font-bold">Vos Partenaires</h2>
-            <p className="text-slate-500 mt-2">Indiquez une adresse et un rayon de recherche pour trouver des partenaires locaux.</p>
-        </div>
-
-        <div>
-          <label htmlFor="partnerAddress" className="block text-sm font-medium text-slate-700">
-            Adresse du client
-          </label>
-          <div className="mt-1">
-            <input
-              type="text"
-              id="partnerAddress"
-              value={partnerAddress}
-              onChange={(e) => setPartnerAddress(e.target.value)}
-              required
-              className="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
-              placeholder="Ex: 24 Avenue des Champs-Élysées, 75008 Paris"
-            />
-          </div>
+            <p className="text-slate-500 mt-2">Définissez la zone et le volume de votre recherche de partenaires.</p>
         </div>
 
         <div>
