@@ -13,9 +13,9 @@ export interface UserBusinessInfo {
 
 export interface GeneratedBusinessInfo {
   activity: string;          // Activité et spécificité
-  city: string;       // Secteur / Ville
   name: string;           // Nom / Société
   address: string;        // Adresse postale complète
+  city: string;           // Secteur / Ville
   extract: string;        // Extrait
   description: string;   // Description
 }

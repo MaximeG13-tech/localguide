@@ -77,14 +77,13 @@ const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactN
 
 const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo }> = ({ business }) => {
     // Dynamically create a reliable Google Maps search URL using the full address for better precision.
-    const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${business.name.replace('- ', '')}, ${business.address}`)}`;
+    const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.address)}`;
 
     return (
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-slate-200 space-y-5 transition-all hover:shadow-xl hover:border-blue-200">
             <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-teal-600 border-b-2 border-slate-100 pb-3 mb-5">{business.name}</h3>
             <CopyableField label="Activité et spécificité" value={business.activity} icon={<BriefcaseIcon />} />
             <CopyableField label="Secteur / Ville" value={business.city} icon={<MapPinIcon />} />
-            <CopyableField label="Adresse" value={business.address} icon={<MailIcon />} />
             <CopyableField label="Nom / Société" value={business.name} icon={<BuildingStorefrontIcon />} />
             <CopyableField label="Extrait" value={business.extract} icon={<DocumentTextIcon />} isTextarea />
             <CopyableField label="Description" value={business.description} icon={<AlignLeftIcon />} isHtml />
