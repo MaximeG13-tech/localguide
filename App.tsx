@@ -56,7 +56,7 @@ const App: React.FC = () => {
         // When the AI generation starts (at 20%), begin the slow, simulated progress
         if (update.progress === 20) {
             const estimatedDuration = Math.max(15, info.linkCount * 1.5) * 1000; // 1.5s per link, min 15s
-            startSlowProgress(20, 90, estimatedDuration);
+            startSlowProgress(20, 95, estimatedDuration);
         }
       };
 

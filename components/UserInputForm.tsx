@@ -76,7 +76,7 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
 
         <div>
           <label htmlFor="partnerAddress" className="block text-sm font-medium text-slate-700">
-            Adresse de recherche
+            Adresse du client
           </label>
           <div className="mt-1">
             <input
@@ -93,7 +93,7 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
 
         <div>
             <label htmlFor="radius" className="block text-sm font-medium text-slate-700">
-                Kilomètres aux alentours
+                Périmètre de recherche
             </label>
             <select
                 id="radius"
