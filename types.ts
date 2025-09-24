@@ -4,11 +4,11 @@ export enum AppStep {
 }
 
 export interface UserBusinessInfo {
-  url: string;
   name: string;
   description: string;
-  address: string;
   linkCount: number;
+  partnerSearchAddress: string;
+  partnerSearchRadius: number;
 }
 
 export interface GeneratedBusinessInfo {
@@ -18,6 +18,7 @@ export interface GeneratedBusinessInfo {
   city: string;           // Secteur / Ville
   extract: string;        // Extrait
   description: string;   // Description
+  phone: string;         // Numéro de téléphone
 }
 
 export type LocalGuide = GeneratedBusinessInfo[];

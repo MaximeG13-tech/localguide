@@ -12,7 +12,7 @@ const MapPinIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-
 const BuildingStorefrontIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" fill="currentColor" viewBox="0 0 16 16"><path d="M13.427 1.11C13.26 1.04 13.11 1 12.5 1h-9a1.5 1.5 0 0 0 0 3h9a1.5 1.5 0 0 0 0-3M1.713 5.055a.5.5 0 0 1 .573.03l1.375 1.455-1.018 2.853.011.01a.5.5 0 0 1-.34 1.113H2.5a.5.5 0 0 1 0-1h.562l.31-2.6-1.437-1.526A.5.5 0 0 1 1.713 5.055m11.47 0a.5.5 0 0 1 .573.03l1.375 1.455-1.018 2.853.011.01a.5.5 0 0 1-.34 1.113h-1.25a.5.5 0 0 1 0-1h.562l.31-2.6-1.437-1.526a.5.5 0 0 1 .03-.573ZM6.02 11.525a.5.5 0 0 1 .5-.5h2.96a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-2.96a.5.5 0 0 1-.5-.5v-1Z"/><path d="M16 5.333a1.65 1.65 0 0 1-1.65 1.65h-1.238a.5.5 0 0 1-.49-.356l-.24-1.202a.5.5 0 0 1 .356-.567L13.43 4.58a1.65 1.65 0 0 1 2.57 2.253l-1.43 1.29a.5.5 0 0 1-.685-.152l-1.35-2.25A.5.5 0 0 1 12.5 5h-9a.5.5 0 0 1-.256.44l-1.35 2.25a.5.5 0 0 1-.685.152L.073 6.833A1.65 1.65 0 0 1 2.57 4.58l.755.333a.5.5 0 0 1 .356.567l-.24 1.202a.5.5 0 0 1-.49.356H1.65A1.65 1.65 0 0 1 0 5.333V15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5.333Z"/></svg> );
 const DocumentTextIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 2a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h4a.5.5 0 010 1h-4a.5.5 0 01-.5-.5z" clipRule="evenodd" /></svg> );
 const AlignLeftIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg> );
-const MailIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg> );
+const PhoneIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.518.759a11.024 11.024 0 005.176 5.176l.759-1.518a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg> );
 
 const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactNode; isTextarea?: boolean; isLink?: boolean; isHtml?: boolean }> = ({ label, value, icon, isTextarea = false, isLink = false, isHtml = false }) => {
     const [copied, setCopied] = useState(false);
@@ -82,9 +82,11 @@ const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo }> = ({ business
     return (
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-slate-200 space-y-5 transition-all hover:shadow-xl hover:border-blue-200">
             <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-teal-600 border-b-2 border-slate-100 pb-3 mb-5">{business.name}</h3>
-            <CopyableField label="Activité et spécificité" value={business.activity} icon={<BriefcaseIcon />} />
-            <CopyableField label="Secteur / Ville" value={business.city} icon={<MapPinIcon />} />
             <CopyableField label="Nom / Société" value={business.name} icon={<BuildingStorefrontIcon />} />
+            <CopyableField label="Activité et spécificité" value={business.activity} icon={<BriefcaseIcon />} />
+            <CopyableField label="Adresse" value={business.address} icon={<MapPinIcon />} />
+            <CopyableField label="Secteur / Ville" value={business.city} icon={<MapPinIcon />} />
+            <CopyableField label="Téléphone" value={business.phone} icon={<PhoneIcon />} />
             <CopyableField label="Extrait" value={business.extract} icon={<DocumentTextIcon />} isTextarea />
             <CopyableField label="Description" value={business.description} icon={<AlignLeftIcon />} isHtml />
             <CopyableField label="Lien Google Maps (Recherche)" value={googleMapsSearchUrl} icon={<MapPinIcon />} isLink />

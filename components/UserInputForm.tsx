@@ -2,45 +2,24 @@ import React, { useState } from 'react';
 import { UserBusinessInfo } from '../types';
 
 interface UserInputFormProps {
-  onSubmit: (info: UserBusinessInfo, csvData: string) => void;
+  onSubmit: (info: UserBusinessInfo) => void;
 }
 
 const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [partnerAddress, setPartnerAddress] = useState('');
+  const [radius, setRadius] = useState(5);
   const [linkCount, setLinkCount] = useState(5);
-  const [csvContent, setCsvContent] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string>('');
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== 'text/csv' && !file.name.endsWith('.csv')) {
-        alert('Veuillez sélectionner un fichier .csv');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        setCsvContent(text);
-        setFileName(file.name);
-      };
-      reader.readAsText(file);
-    } else {
-      setCsvContent(null);
-      setFileName('');
-    }
-  };
-
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name && description && csvContent) {
-        onSubmit({ url: '', name, description, address: '', linkCount }, csvContent);
+    if (name && description && partnerAddress) {
+        onSubmit({ name, description, linkCount, partnerSearchAddress: partnerAddress, partnerSearchRadius: radius });
     }
   };
 
-  const isSubmitDisabled = !name || !description || !csvContent;
+  const isSubmitDisabled = !name || !description || !partnerAddress;
 
   return (
     <div className="p-8 md:p-12">
@@ -92,32 +71,41 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
                 <span className="text-2xl font-bold text-blue-600">2</span>
             </div>
             <h2 className="text-2xl font-bold">Vos Partenaires</h2>
-            <p className="text-slate-500 mt-2">Importez votre fichier CSV et choisissez combien d'entreprises vous souhaitez traiter.</p>
+            <p className="text-slate-500 mt-2">Indiquez une adresse et un rayon de recherche pour trouver des partenaires locaux.</p>
         </div>
 
         <div>
-            <label htmlFor="csvFile-label" className="block text-sm font-medium text-slate-700">
-                Fichier CSV des partenaires
+          <label htmlFor="partnerAddress" className="block text-sm font-medium text-slate-700">
+            Adresse de recherche
+          </label>
+          <div className="mt-1">
+            <input
+              type="text"
+              id="partnerAddress"
+              value={partnerAddress}
+              onChange={(e) => setPartnerAddress(e.target.value)}
+              required
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
+              placeholder="Ex: 24 Avenue des Champs-Élysées, 75008 Paris"
+            />
+          </div>
+        </div>
+
+        <div>
+            <label htmlFor="radius" className="block text-sm font-medium text-slate-700">
+                Kilomètres aux alentours
             </label>
-            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-300 border-dashed rounded-lg">
-                <div className="space-y-1 text-center">
-                    <svg className="mx-auto h-12 w-12 text-slate-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                        <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <div className="flex text-sm text-slate-600">
-                        <label htmlFor="csvFile" className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                            <span>Sélectionnez un fichier</span>
-                            <input id="csvFile" name="csvFile" type="file" className="sr-only" accept=".csv" onChange={handleFileChange} />
-                        </label>
-                        <p className="pl-1">ou glissez-déposez</p>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                        Fichier CSV uniquement.
-                    </p>
-                    {fileName && <p className="text-sm font-semibold text-green-600 pt-2">{fileName}</p>}
-                </div>
-            </div>
-            <p className="mt-2 text-xs text-slate-500">Le CSV doit contenir au minimum les colonnes : `name`, `address`.</p>
+            <select
+                id="radius"
+                value={radius}
+                onChange={(e) => setRadius(Number(e.target.value))}
+                className="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
+            >
+                <option value="5">5 km</option>
+                <option value="10">10 km</option>
+                <option value="20">20 km</option>
+                <option value="50">50 km</option>
+            </select>
         </div>
 
         <div>

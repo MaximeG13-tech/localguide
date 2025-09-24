@@ -15,7 +15,7 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
   const progressIntervalRef = useRef<number | null>(null);
 
-  const handleUserInfoSubmit = async (info: UserBusinessInfo, csvData: string) => {
+  const handleUserInfoSubmit = async (info: UserBusinessInfo) => {
     setIsLoading(true);
     setError(null);
     setGeneratedGuide(null);
@@ -60,7 +60,7 @@ const App: React.FC = () => {
         }
       };
 
-      const guide = await generateLocalGuide(info, csvData, onProgressUpdate);
+      const guide = await generateLocalGuide(info, onProgressUpdate);
 
       // On success, ensure interval is cleared and jump to 100%
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
