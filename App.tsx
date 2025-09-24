@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<number>(0);
+  const [generationTime, setGenerationTime] = useState<number | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
 
   const clearProgressInterval = () => {
@@ -35,7 +36,10 @@ const App: React.FC = () => {
     setGeneratedGuide(null);
     setLoadingMessage("L'IA analyse votre demande...");
     setProgress(0);
+    setGenerationTime(null);
     clearProgressInterval();
+    
+    const startTime = Date.now();
 
     // Start a smooth, continuous progress simulation from 0 to 99
     const estimatedDuration = Math.max(20, info.linkCount * 1.8) * 1000; // 1.8s per link, min 20s
@@ -58,6 +62,8 @@ const App: React.FC = () => {
 
     try {
       const guide = await generateLocalGuide(info);
+      const endTime = Date.now();
+      setGenerationTime(endTime - startTime);
 
       // On success, ensure interval is cleared and jump to 100%
       clearProgressInterval();
@@ -83,6 +89,7 @@ const App: React.FC = () => {
     setIsLoading(false);
     setLoadingMessage('');
     setProgress(0);
+    setGenerationTime(null);
     clearProgressInterval();
   };
 
@@ -110,7 +117,7 @@ const App: React.FC = () => {
       case AppStep.USER_INFO:
         return <UserInputForm onSubmit={handleUserInfoSubmit} />;
       case AppStep.DISPLAY_GUIDE:
-        return generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} /> : null;
+        return generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} generationTime={generationTime} /> : null;
       default:
         return <UserInputForm onSubmit={handleUserInfoSubmit} />;
     }

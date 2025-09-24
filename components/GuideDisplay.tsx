@@ -4,6 +4,7 @@ import { LocalGuide, GeneratedBusinessInfo } from '../types';
 interface GuideDisplayProps {
   guide: LocalGuide;
   onReset: () => void;
+  generationTime: number | null;
 }
 
 // Icon Components
@@ -94,7 +95,7 @@ const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo }> = ({ business
 };
 
 
-const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset }) => {
+const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, generationTime }) => {
 
   const handleExportJson = () => {
     const dataStr = JSON.stringify(guide, null, 2);
@@ -108,6 +109,32 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset }) => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  const formatGenerationTime = (ms: number | null): string | null => {
+    if (ms === null || ms <= 0) {
+      return null;
+    }
+
+    const totalSeconds = ms / 1000;
+
+    if (totalSeconds < 60) {
+      return `Guide généré en ${totalSeconds.toFixed(1)} secondes.`;
+    }
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = Math.round(totalSeconds % 60);
+
+    const minuteText = `${minutes} minute${minutes > 1 ? 's' : ''}`;
+
+    if (seconds > 0) {
+      const secondText = `${seconds} seconde${seconds > 1 ? 's' : ''}`;
+      return `Guide généré en ${minuteText} et ${secondText}.`;
+    }
+
+    return `Guide généré en ${minuteText}.`;
+  };
+  
+  const formattedTime = formatGenerationTime(generationTime);
 
   return (
     <div className="p-4 md:p-8 bg-slate-100">
@@ -129,6 +156,11 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset }) => {
                 Exporter en JSON
             </button>
         </div>
+         {formattedTime && (
+          <p className="text-center text-sm text-slate-500 mb-8 -mt-4">
+            {formattedTime}
+          </p>
+        )}
       <div>
         {guide.map((business, index) => (
           <BusinessEntry key={index} business={business} />
