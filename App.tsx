@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AppStep, UserBusinessInfo, LocalGuide } from './types';
 import UserInputForm from './components/UserInputForm';
 import GuideDisplay from './components/GuideDisplay';
@@ -15,56 +15,54 @@ const App: React.FC = () => {
   const [progress, setProgress] = useState<number>(0);
   const progressIntervalRef = useRef<number | null>(null);
 
+  const clearProgressInterval = () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    // Cleanup interval on component unmount
+    return () => {
+      clearProgressInterval();
+    };
+  }, []);
+
   const handleUserInfoSubmit = async (info: UserBusinessInfo) => {
     setIsLoading(true);
     setError(null);
     setGeneratedGuide(null);
-    setLoadingMessage("Initialisation...");
+    setLoadingMessage("L'IA analyse votre demande...");
     setProgress(0);
+    clearProgressInterval();
 
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
+    // Start a smooth, continuous progress simulation from 0 to 99
+    const estimatedDuration = Math.max(20, info.linkCount * 1.8) * 1000; // 1.8s per link, min 20s
+    const totalSteps = 99;
+    const stepInterval = estimatedDuration / totalSteps;
 
-    const startSlowProgress = (from: number, to: number, duration: number) => {
-        if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-        const range = to - from;
-        if (range <= 0 || duration <= 0) return;
-        const stepInterval = duration / range;
-        progressIntervalRef.current = window.setInterval(() => {
-            setProgress(prev => {
-                if (prev >= to) {
-                    if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-                    return to;
-                }
-                return prev + 1;
-            });
-        }, stepInterval);
-    };
+    progressIntervalRef.current = window.setInterval(() => {
+      setProgress(prev => {
+        const next = prev + 1;
+        if (next >= totalSteps) {
+          clearProgressInterval();
+          return totalSteps;
+        }
+        return next;
+      });
+    }, stepInterval);
+    
+    setLoadingMessage("Génération des partenaires par l'IA...");
+
 
     try {
-      const onProgressUpdate = (update: { message: string, progress: number }) => {
-        // Clear any slow progression if a firm update comes in
-        if (progressIntervalRef.current) {
-            clearInterval(progressIntervalRef.current);
-            progressIntervalRef.current = null;
-        }
-
-        setLoadingMessage(update.message);
-        setProgress(update.progress);
-        
-        // When the AI generation starts (at 20%), begin the slow, simulated progress
-        if (update.progress === 20) {
-            const estimatedDuration = Math.max(15, info.linkCount * 1.5) * 1000; // 1.5s per link, min 15s
-            startSlowProgress(20, 95, estimatedDuration);
-        }
-      };
-
-      const guide = await generateLocalGuide(info, onProgressUpdate);
+      const guide = await generateLocalGuide(info);
 
       // On success, ensure interval is cleared and jump to 100%
-      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
+      clearProgressInterval();
       setProgress(100);
+      setLoadingMessage("Guide généré avec succès !");
       setGeneratedGuide(guide);
       setStep(AppStep.DISPLAY_GUIDE);
 
@@ -72,9 +70,8 @@ const App: React.FC = () => {
       console.error(err);
       setError(err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la génération du guide.");
     } finally {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
+      // The interval is cleared in success/error path, but this is a final safeguard.
+      clearProgressInterval();
       setIsLoading(false);
     }
   };
@@ -86,9 +83,7 @@ const App: React.FC = () => {
     setIsLoading(false);
     setLoadingMessage('');
     setProgress(0);
-    if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-    }
+    clearProgressInterval();
   };
 
   const renderContent = () => {
