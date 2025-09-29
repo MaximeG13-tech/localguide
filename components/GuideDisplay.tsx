@@ -14,6 +14,8 @@ const BuildingStorefrontIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" c
 const DocumentTextIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 2a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h4a.5.5 0 010 1h-4a.5.5 0 01-.5-.5z" clipRule="evenodd" /></svg> );
 const AlignLeftIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg> );
 const PhoneIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.518.759a11.024 11.024 0 005.176 5.176l.759-1.518a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg> );
+const GlobeAltIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.998 5.998 0 0116 10c0 .994-.252 1.927-.702 2.757A6.01 6.01 0 0113.088 15.02c.003.007.005.014.007.021A.5.5 0 0113 15h-1a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h1a.5.5 0 01.31-.112A4.011 4.011 0 0011 11c0-1.518-.93-2.825-2.25-3.415A2.99 2.99 0 009 8.5V9.5a.5.5 0 01-1 0V8a2 2 0 00-4 0 2 2 0 01-1.523-1.943A5.998 5.998 0 014 10c0 .158.012.314.034.469a.5.5 0 01-.48.531h-1a.5.5 0 01-.48-.531A6.004 6.004 0 014.332 8.027z" clipRule="evenodd" /></svg> );
+const UserCircleIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" /></svg> );
 
 const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactNode; isTextarea?: boolean; isLink?: boolean; isHtml?: boolean }> = ({ label, value, icon, isTextarea = false, isLink = false, isHtml = false }) => {
     const [copied, setCopied] = useState(false);
@@ -76,10 +78,7 @@ const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactN
     );
 };
 
-const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo; index: number }> = ({ business, index }) => {
-    // Dynamically create a reliable Google Maps search URL using the business name and full address for better precision.
-    const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${business.name}, ${business.address}`)}`;
-
+const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo; index: number; onOpenBrief: (business: GeneratedBusinessInfo) => void; }> = ({ business, index, onOpenBrief }) => {
     return (
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8 border border-slate-200 space-y-5 transition-all hover:shadow-xl hover:border-blue-200">
             <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-teal-600 border-b-2 border-slate-100 pb-3 mb-5">{`${index + 1}. ${business.name}`}</h3>
@@ -87,15 +86,90 @@ const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo; index: number }
             <CopyableField label="Activité et spécificité" value={business.activity} icon={<BriefcaseIcon />} />
             <CopyableField label="Secteur / Ville" value={business.city} icon={<MapPinIcon />} />
             <CopyableField label="Téléphone" value={business.phone} icon={<PhoneIcon />} />
+            {business.website && <CopyableField label="Site Web" value={business.website} icon={<GlobeAltIcon />} isLink />}
             <CopyableField label="Extrait" value={business.extract} icon={<DocumentTextIcon />} isTextarea />
             <CopyableField label="Description" value={business.description} icon={<AlignLeftIcon />} isHtml />
-            <CopyableField label="Lien Google Maps (Recherche)" value={googleMapsSearchUrl} icon={<MapPinIcon />} isLink />
+             <div className="pt-4 border-t border-slate-200">
+                <button
+                    onClick={() => onOpenBrief(business)}
+                    className="inline-flex items-center gap-2 justify-center py-2 px-4 border border-blue-600 text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
+                >
+                    <UserCircleIcon />
+                    Brief commercial
+                </button>
+            </div>
         </div>
     );
 };
 
+const CommercialBriefModal: React.FC<{ business: GeneratedBusinessInfo | null; onClose: () => void; }> = ({ business, onClose }) => {
+  if (!business) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4 transition-opacity duration-300"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="brief-title"
+    >
+      <div 
+        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-5 border-b border-slate-200 flex justify-between items-center">
+          <h3 id="brief-title" className="text-xl font-bold text-slate-800">Brief: {business.name}</h3>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-800" aria-label="Fermer">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div className="p-6 space-y-5 overflow-y-auto">
+          <div>
+            <h4 className="font-bold text-slate-700 mb-1">Contexte de l'entreprise</h4>
+            <div className="text-sm text-slate-600 space-y-2" dangerouslySetInnerHTML={{ __html: business.description || 'Non fourni.' }}></div>
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-700 mb-1">Site Web</h4>
+            {business.website ? <a href={business.website} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{business.website}</a> : <p className="text-sm text-slate-500">Non fourni.</p>}
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-700 mb-1">Fiche d'établissement Google</h4>
+            {business.googleBusinessProfileLink ? <a href={business.googleBusinessProfileLink} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">{business.googleBusinessProfileLink}</a> : <p className="text-sm text-slate-500">Non fournie.</p>}
+          </div>
+          <div>
+            <h4 className="font-bold text-slate-700 mb-1">Téléphone (Gérant)</h4>
+            <p className="text-sm text-slate-600">{business.managerPhone || 'Non fourni.'}</p>
+          </div>
+           <div>
+            <h4 className="font-bold text-slate-700 mb-1">Numéro de SIRET</h4>
+             {business.siret ? (
+              <a 
+                href={`https://www.pappers.fr/entreprise/${business.siret.replace(/\s/g, '').substring(0, 9)}`}
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-sm text-blue-600 hover:underline break-all"
+                title="Vérifier sur pappers.fr"
+              >
+                {business.siret}
+              </a>
+            ) : (
+              <p className="text-sm text-slate-500">Non fourni.</p>
+            )}
+          </div>
+        </div>
+        <div className="p-4 bg-slate-50 border-t border-slate-200 text-right">
+          <button onClick={onClose} className="px-5 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition">
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, generationTime }) => {
+  const [modalBusiness, setModalBusiness] = useState<GeneratedBusinessInfo | null>(null);
 
   const handleExportJson = () => {
     const dataStr = JSON.stringify(guide, null, 2);
@@ -137,36 +211,39 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, generationT
   const formattedTime = formatGenerationTime(generationTime);
 
   return (
-    <div className="p-4 md:p-8 bg-slate-100">
-        <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-slate-800">Votre Guide Local est Prêt !</h2>
-            <p className="text-slate-600 mt-2">Copiez chaque champ et collez-le dans votre back-office, ou exportez toutes les données.</p>
+    <>
+      <CommercialBriefModal business={modalBusiness} onClose={() => setModalBusiness(null)} />
+      <div className="p-4 md:p-8 bg-slate-100">
+          <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold text-slate-800">Votre Guide Local est Prêt !</h2>
+              <p className="text-slate-600 mt-2">Copiez chaque champ et collez-le dans votre back-office, ou exportez toutes les données.</p>
+          </div>
+          <div className="my-8 flex flex-col md:flex-row-reverse justify-center items-center gap-4">
+               <button
+                  onClick={onReset}
+                  className="w-full md:w-auto inline-flex justify-center py-3 px-6 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
+              >
+                  Générer un autre guide
+              </button>
+              <button
+                  onClick={handleExportJson}
+                  className="w-full md:w-auto inline-flex justify-center py-3 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
+              >
+                  Exporter en JSON
+              </button>
+          </div>
+           {formattedTime && (
+            <p className="text-center text-sm text-slate-500 mb-8 -mt-4">
+              {formattedTime}
+            </p>
+          )}
+        <div>
+          {guide.map((business, index) => (
+            <BusinessEntry key={index} business={business} index={index} onOpenBrief={setModalBusiness} />
+          ))}
         </div>
-        <div className="my-8 flex flex-col md:flex-row-reverse justify-center items-center gap-4">
-             <button
-                onClick={onReset}
-                className="w-full md:w-auto inline-flex justify-center py-3 px-6 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
-            >
-                Générer un autre guide
-            </button>
-            <button
-                onClick={handleExportJson}
-                className="w-full md:w-auto inline-flex justify-center py-3 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
-            >
-                Exporter en JSON
-            </button>
-        </div>
-         {formattedTime && (
-          <p className="text-center text-sm text-slate-500 mb-8 -mt-4">
-            {formattedTime}
-          </p>
-        )}
-      <div>
-        {guide.map((business, index) => (
-          <BusinessEntry key={index} business={business} index={index} />
-        ))}
       </div>
-    </div>
+    </>
   );
 };
 

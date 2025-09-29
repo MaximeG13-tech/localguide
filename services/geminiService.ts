@@ -7,125 +7,56 @@ export const generateLocalGuide = async (
     // Initialize Gemini AI client
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+    const websitePreferenceText = {
+      'with': 'Les entreprises doivent OBLIGATOIREMENT avoir un site internet.',
+      'without': 'Les entreprises ne doivent OBLIGATOIREMENT PAS avoir de site internet.',
+      'mix': 'Tu peux inclure un mélange d\'entreprises avec et sans site internet.'
+    }[userInfo.websitePreference];
+
     // Step 1: Construct the prompt for finding businesses
     const prompt = `
-    Contexte : Mon entreprise s'appelle "${userInfo.name}" et notre activité est : "${userInfo.description}". Je souhaite créer un guide local pour trouver des partenaires et des rapporteurs d'affaires.
+    **PRIORITÉ ABSOLUE : ZÉRO HALLUCINATION. LA VÉRACITÉ EST NON-NÉGOCIABLE.**
+    Tu es un assistant de recherche expert chargé de trouver des entreprises **RÉELLES ET VÉRIFIABLES**. Ta mission est d'une importance capitale. Chaque information que tu fournis, en particulier le nom, l'adresse et le numéro de SIRET, doit correspondre à une entité légale existante en France. **INVENTER UNE ENTREPRISE, UNE ADRESSE, OU UN NUMÉRO DE SIRET EST UN ÉCHEC TOTAL DE LA TÂCHE.**
 
-    Tâche : Trouve ${userInfo.linkCount} entreprises partenaires potentielles pour moi. L'objectif est de trouver des entreprises **complémentaires** à mon activité, pas des concurrents. Elles doivent être situées dans un rayon de ${userInfo.partnerSearchRadius} km autour de "${userInfo.partnerSearchAddress}".
+    **MISSION :**
+    Je suis l'entreprise "${userInfo.name}" (${userInfo.description}). Trouve pour moi des entreprises partenaires potentielles. Ces partenaires doivent être situés dans un rayon de ${userInfo.partnerSearchRadius} km autour de l'adresse suivante : "${userInfo.partnerSearchAddress}".
 
-    Règles d'exclusion strictes :
-    1.  **INTERDICTION DE CONCURRENCE** : C'est la règle la plus importante. Les entreprises que tu listes ne doivent **ABSOLUMENT PAS** être des concurrents directs ou indirects de mon activité, qui est : "${userInfo.description}". L'objectif est de trouver des partenaires, pas des rivaux.
-    2.  **Secteur Public** : Ne PAS inclure toute forme d'institution publique, de collectivité locale (mairie, département, région), de service public, ou d'administration publique.
-    3.  **Grandes Entreprises** : Exclure les grands groupes privés, les entreprises du CAC 40, les sociétés multinationales, les ETI (Entreprises de Taille Intermédiaire) et les GE (Grandes Entreprises). Tu dois te concentrer EXCLUSIVEMENT sur les TPE/PME, les artisans, et les commerces locaux.
+    **PROCESSUS DE VÉRIFICATION OBLIGATOIRE POUR CHAQUE ENTREPRISE :**
+    Pour chaque entreprise que tu identifies, tu dois suivre ces étapes SANS EXCEPTION :
+    1.  **VÉRIFICATION DE L'EXISTENCE :** Utilise la recherche Google pour confirmer que l'entreprise existe réellement à l'adresse indiquée. Cherche son site officiel ou sa fiche Google Business Profile.
+    2.  **VÉRIFICATION DU SIRET :** C'est l'étape la plus critique. Tu dois trouver le numéro de SIRET à 14 chiffres de l'entreprise. Utilise des recherches comme "[Nom de l'entreprise] [Ville] SIRET". **Si tu ne trouves PAS de numéro de SIRET valide et vérifiable, tu dois IMPÉRATIVEMENT abandonner cette entreprise et en chercher une autre.**
+    3.  **COLLECTE DES DONNÉES :** Uniquement APRÈS avoir vérifié l'existence ET le SIRET, collecte les informations ci-dessous.
 
-    Pour chaque entreprise (TPE/PME/artisan) trouvée, tu dois impérativement trouver son adresse complète et exacte, ainsi qu'un numéro de téléphone vérifié. Fournis les informations suivantes en français :
-    - name: Le nom complet de l'entreprise.
-    - address: L'adresse postale complète et exacte que tu as trouvée.
-    - phone: Le numéro de téléphone vérifié.
+    **RÈGLES D'EXCLUSION STRICTES (À APPLIQUER APRÈS LA VÉRIFICATION) :**
+    - **NON-CONCURRENCE :** Les entreprises ne doivent pas être des concurrents de mon activité : "${userInfo.description}".
+    - **PAS DE SECTEUR PUBLIC :** Aucune administration, mairie, collectivité, etc.
+    - **TPE/PME UNIQUEMENT :** Exclus les grands groupes, ETI, GE, et multinationales. Concentre-toi sur les artisans, commerces locaux, TPE et PME.
+    - **PRÉSENCE DE SITE WEB :** ${websitePreferenceText}
+
+    **FORMAT DES DONNÉES REQUISES (POUR CHAQUE ENTREPRISE VÉRIFIÉE) :**
+    - name: Le nom légal complet de l'entreprise.
+    - address: L'adresse postale complète, exacte et vérifiée.
+    - phone: Le numéro de téléphone principal.
+    - siret: Le numéro de SIRET à 14 chiffres, **vérifié et non-inventé**.
     - city: Le secteur, formaté ainsi : "[Ville] ([Code Postal]) [préposition] [Département]". La préposition doit être choisie en fonction du département, en suivant IMPÉRATIVEMENT les règles grammaticales françaises suivantes :
-        - en Île-de-France
-        - dans l'Ain
-        - dans l'Aisne
-        - dans l’Allier
-        - dans les Alpes-de-Haute-Provence
-        - dans les Hautes-Alpes
-        - dans les Alpes-Maritimes
-        - dans l’Ardèche
-        - dans les Ardennes
-        - dans l’Ariège
-        - dans l’Aube
-        - dans l’Aude
-        - dans l’Aveyron
-        - dans les Bouches-du-Rhône
-        - dans le Calvados
-        - dans le Cantal
-        - dans la Charente
-        - dans la Charente-Maritime
-        - dans le Cher
-        - en Corrèze
-        - dans la Corse-du-Sud
-        - en Haute-Corse
-        - dans la Côte-d’Or
-        - dans les Côtes-d’Armor
-        - dans la Creuse
-        - en Dordogne
-        - dans le Doubs
-        - dans la Drôme
-        - dans l’Eure
-        - dans l’Eure-et-Loir
-        - dans le Finistère
-        - dans le Gard
-        - dans la Haute-Garonne
-        - dans le Gers
-        - dans la Gironde
-        - dans le Jura
-        - dans les Landes
-        - dans le Loir-et-Cher
-        - dans la Loire
-        - dans la Haute-Loire
-        - dans la Loire-Atlantique
-        - dans le Loiret
-        - dans le Lot
-        - dans le Lot-et-Garonne
-        - dans la Lozère
-        - dans le Maine-et-Loire
-        - dans la Manche
-        - dans la Marne
-        - dans la Haute-Marne
-        - dans la Mayenne
-        - dans la Meurthe-et-Moselle
-        - dans la Meuse
-        - dans le Morbihan
-        - dans la Moselle
-        - dans la Nièvre
-        - dans le Nord
-        - dans l’Oise
-        - dans l’Orne
-        - dans le Pas-de-Calais
-        - dans le Puy-de-Dôme
-        - dans les Pyrénées-Atlantiques
-        - dans les Hautes-Pyrénées
-        - dans les Pyrénées-Orientales
-        - dans le Bas-Rhin
-        - dans le Haut-Rhin
-        - dans le Rhône
-        - dans la Haute-Saône
-        - dans la Saône-et-Loire
-        - dans la Sarthe
-        - en Savoie
-        - en Haute-Savoie
-        - dans Paris
-        - dans la Seine-Maritime
-        - dans la Seine-et-Marne
-        - dans les Yvelines
-        - dans les Deux-Sèvres
-        - dans la Somme
-        - dans le Tarn
-        - dans le Tarn-et-Garonne
-        - dans le Var
-        - dans le Vaucluse
-        - dans la Vendée
-        - dans la Vienne
-        - dans la Haute-Vienne
-        - dans les Vosges
-        - dans l’Yonne
-        - dans le Territoire de Belfort
-        - dans l’Essonne
-        - dans les Hauts-de-Seine
-        - dans la Seine-Saint-Denis
-        - dans le Val-de-Marne
-        - dans le Val-d’Oise
-        - en Guadeloupe
-        - en Martinique
-        - en Guyane
-        - à La Réunion
-        - à Mayotte
+        - en Île-de-France, en Corrèze, en Dordogne, en Savoie, en Haute-Savoie, en Guadeloupe, en Martinique, en Guyane
+        - à La Réunion, à Mayotte
+        - dans l'Ain, dans l'Aisne, dans l’Allier, etc. (la majorité des cas)
+        - dans les Alpes-de-Haute-Provence, dans les Hautes-Alpes, etc. (pour les pluriels)
         Exemples de format attendu : "Besançon (25000) dans le Doubs" ou "Annecy (74000) en Haute-Savoie". Cette information doit être déduite de l'adresse complète.
     - activity: Une phrase courte décrivant l'activité principale et la spécialité.
     - extract: Un résumé de 2-3 phrases (environ 160 caractères), pour une méta-description.
     - description: Une description détaillée (2-3 paragraphes) au format HTML, utilisant des balises <p>.
+    - website: L'URL complète du site internet de l'entreprise. Si elle n'en a pas, retourne une chaîne vide "".
+    - googleBusinessProfileLink: Le lien direct vers la fiche d'établissement Google (Google Business Profile). Si non trouvé, retourne une chaîne vide "".
+    - managerPhone: Le numéro de téléphone direct du gérant, si trouvable publiquement. Sinon, retourne une chaîne vide "".
 
-    Format de sortie : Tu dois retourner UNIQUEMENT un tableau JSON valide. Le tableau ne doit contenir que les objets des entreprises, sans aucun autre texte, explication ou formatage. Chaque objet doit avoir les clés suivantes : "name", "address", "phone", "city", "activity", "extract", "description".
+    **QUANTITÉ ET QUALITÉ : UN REQUIS ABSOLU :**
+    Tu DOIS trouver **exactement ${userInfo.linkCount}** entreprises. Ce nombre n'est pas une suggestion, c'est un impératif.
+    Chacune de ces ${userInfo.linkCount} entreprises doit passer le processus de vérification strict (existence réelle + SIRET valide). Il n'y a aucune exception.
+    Si tu as des difficultés à trouver le nombre requis d'entreprises qui satisfont aux critères, tu dois persévérer, étendre ta recherche, ou essayer des requêtes différentes. Ne retourne JAMAIS une liste incomplète. Ne retourne JAMAIS une entreprise non vérifiée pour atteindre le quota. Ta mission est de fournir une liste complète ET 100% fiable.
+
+    **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Le tableau ne doit contenir que les objets des entreprises, sans aucun autre texte, explication ou formatage.
     `;
 
     // Step 2: Call Gemini API with Google Search grounding
@@ -146,7 +77,7 @@ export const generateLocalGuide = async (
 
     // Step 3: Parse and return the response
     if (!jsonString || jsonString.trim() === '') {
-        throw new Error("La réponse de l'API Gemini est vide.");
+        throw new Error("La réponse de l'API Gemini est vide. Il est possible qu'aucune entreprise vérifiable correspondant à vos critères n'ait été trouvée.");
     }
     
     try {
@@ -160,9 +91,10 @@ export const generateLocalGuide = async (
             throw new Error(`La réponse de l'IA n'est pas un tableau JSON valide. Reçu: ${typeof generatedGuide}`);
         }
         
+        // This validation is less critical now due to the strict prompt, but good to keep.
         if (generatedGuide.length > 0) {
             const firstItem = generatedGuide[0];
-            const requiredKeys: (keyof GeneratedBusinessInfo)[] = ["name", "address", "city", "activity", "extract", "description", "phone"];
+            const requiredKeys: (keyof GeneratedBusinessInfo)[] = ["name", "address", "city", "activity", "extract", "description", "phone", "website", "googleBusinessProfileLink", "managerPhone", "siret"];
             for (const key of requiredKeys) {
                 if (!(key in firstItem)) {
                     throw new Error(`La réponse de l'IA est malformée. La clé '${key}' est manquante dans le premier objet.`);

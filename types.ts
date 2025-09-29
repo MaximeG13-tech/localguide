@@ -9,6 +9,7 @@ export interface UserBusinessInfo {
   linkCount: number;
   partnerSearchAddress: string;
   partnerSearchRadius: number;
+  websitePreference: 'with' | 'without' | 'mix';
 }
 
 export interface GeneratedBusinessInfo {
@@ -19,6 +20,10 @@ export interface GeneratedBusinessInfo {
   extract: string;        // Extrait
   description: string;   // Description
   phone: string;         // Numéro de téléphone
+  website?: string;
+  googleBusinessProfileLink?: string;
+  managerPhone?: string;
+  siret?: string;
 }
 
 export type LocalGuide = GeneratedBusinessInfo[];
