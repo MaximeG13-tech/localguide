@@ -10,7 +10,7 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
   const [description, setDescription] = useState('');
   const [partnerAddress, setPartnerAddress] = useState('');
   const [radius, setRadius] = useState(5);
-  const [linkCount, setLinkCount] = useState(5);
+  const [linkCount, setLinkCount] = useState(10); // Default to 10
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,11 +117,9 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
                 onChange={(e) => setLinkCount(Number(e.target.value))}
                 className="mt-1 block w-full px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
             >
-                <option value="5">5</option>
+                <option value="1">1</option>
                 <option value="10">10</option>
-                <option value="15">15</option>
                 <option value="20">20</option>
-                <option value="25">25</option>
                 <option value="50">50</option>
             </select>
         </div>

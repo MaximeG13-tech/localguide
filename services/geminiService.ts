@@ -82,7 +82,8 @@ const extractJson = (text: string): string => {
 export const generateLocalGuide = async (
   userInfo: UserBusinessInfo,
   onProgress: (message: string) => void,
-  excludeCategories: string[] | null = null
+  excludeCategories: string[] | null = null,
+  userFeedback: string | null = null
 ): Promise<{ guide: LocalGuide; categoriesUsed: string[] }> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -120,6 +121,7 @@ export const generateLocalGuide = async (
       2. Ne retourne **AUCUNE** catégorie qui n'est pas textuellement présente dans cette liste. N'invente rien.
       3. Si une catégorie idéale (comme "architecte" ou "paysagiste") n'est pas dans la liste, tu dois choisir la catégorie valide la plus proche ou la plus pertinente (ex: "home_goods_store", "store", "florist").
       ${allUsedCategories.size > 0 ? `4. **EXCLUSION :** La liste suivante contient des catégories déjà utilisées. NE CHOISIS AUCUNE de ces catégories : ${JSON.stringify(Array.from(allUsedCategories))}` : ''}
+      ${userFeedback ? `5. **FEEDBACK UTILISATEUR SUR LA RECHERCHE PRÉCÉDENTE :** "${userFeedback}". Utilise impérativement ce retour pour affiner ta nouvelle sélection de catégories et éviter les types d'entreprises mentionnés.` : ''}
 
       **LISTE DES CATÉGORIES VALIDES AUTORISÉES :**
       ${JSON.stringify(Array.from(VALID_SEARCHABLE_PLACE_TYPES))}

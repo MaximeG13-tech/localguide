@@ -32,7 +32,11 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleUserInfoSubmit = async (info: UserBusinessInfo, excludeCategories: string[] | null = null) => {
+  const handleUserInfoSubmit = async (
+    info: UserBusinessInfo, 
+    excludeCategories: string[] | null = null,
+    userFeedback: string | null = null
+  ) => {
     setLastUserInfo(info);
     setIsLoading(true);
     setError(null);
@@ -65,7 +69,7 @@ const App: React.FC = () => {
     };
 
     try {
-      const { guide, categoriesUsed } = await generateLocalGuide(info, progressCallback, excludeCategories);
+      const { guide, categoriesUsed } = await generateLocalGuide(info, progressCallback, excludeCategories, userFeedback);
       const endTime = Date.now();
       setGenerationTime(endTime - startTime);
 
@@ -100,11 +104,11 @@ const App: React.FC = () => {
     setLastUsedCategories(null);
   };
 
-  const handleRecommencer = (newLinkCount: number) => {
+  const handleRecommencer = (newLinkCount: number, feedback: string) => {
     if (lastUserInfo) {
       const newInfo = { ...lastUserInfo, linkCount: newLinkCount };
-      // Pass the last used categories to get a new batch
-      handleUserInfoSubmit(newInfo, lastUsedCategories);
+      // Pass the last used categories and new user feedback to get a new batch
+      handleUserInfoSubmit(newInfo, lastUsedCategories, feedback);
     }
   };
 

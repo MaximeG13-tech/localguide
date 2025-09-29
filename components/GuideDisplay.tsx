@@ -4,7 +4,7 @@ import { LocalGuide, GeneratedBusinessInfo, UserBusinessInfo } from '../types';
 interface GuideDisplayProps {
   guide: LocalGuide;
   onReset: () => void;
-  onRecommencer: (newLinkCount: number) => void;
+  onRecommencer: (newLinkCount: number, feedback: string) => void;
   userInfo: UserBusinessInfo | null;
   generationTime: number | null;
 }
@@ -196,9 +196,87 @@ const CommercialBriefModal: React.FC<{ business: GeneratedBusinessInfo | null; o
 };
 
 
+const RecommencerModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (newLinkCount: number, feedback: string) => void;
+  defaultLinkCount: number;
+}> = ({ isOpen, onClose, onSubmit, defaultLinkCount }) => {
+  const [linkCount, setLinkCount] = useState(defaultLinkCount);
+  const [feedback, setFeedback] = useState('');
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(linkCount, feedback);
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div 
+        className="bg-white rounded-lg shadow-xl w-full max-w-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <form onSubmit={handleSubmit}>
+          <div className="p-6 border-b">
+            <h3 className="text-xl font-bold text-slate-800">Relancer la Génération</h3>
+            <p className="text-sm text-slate-500 mt-1">Ajustez la recherche et donnez des instructions à l'IA.</p>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <label htmlFor="modalLinkCount" className="block text-sm font-medium text-slate-700">
+                Nombre d'entreprises à générer
+              </label>
+              <select
+                id="modalLinkCount"
+                value={linkCount}
+                onChange={(e) => setLinkCount(Number(e.target.value))}
+                className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
+              >
+                <option value="1">1</option>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+            <div>
+              <label htmlFor="feedback" className="block text-sm font-medium text-slate-700">
+                Instructions pour l'IA (optionnel)
+              </label>
+              <textarea
+                id="feedback"
+                rows={4}
+                value={feedback}
+                onChange={(e) => setFeedback(e.target.value)}
+                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
+                placeholder="Ex: Il y a trop d'électriciens, je veux plus d'artisans ou de commerces de bouche."
+              />
+            </div>
+          </div>
+          <div className="p-4 bg-slate-50 border-t flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-5 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition">
+              Annuler
+            </button>
+            <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
+              Relancer
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+
 const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommencer, userInfo, generationTime }) => {
   const [modalBusiness, setModalBusiness] = useState<GeneratedBusinessInfo | null>(null);
-  const [newLinkCount, setNewLinkCount] = useState<number>(userInfo?.linkCount || 5);
+  const [isRecommencerModalOpen, setIsRecommencerModalOpen] = useState(false);
 
   const handleExportJson = () => {
     const dataStr = JSON.stringify(guide, null, 2);
@@ -233,9 +311,20 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommenc
   
   const formattedTime = formatGenerationTime(generationTime);
 
+  const handleRecommencerSubmit = (newLinkCount: number, feedback: string) => {
+    onRecommencer(newLinkCount, feedback);
+    setIsRecommencerModalOpen(false);
+  };
+
   return (
     <>
       <CommercialBriefModal business={modalBusiness} onClose={() => setModalBusiness(null)} />
+      <RecommencerModal
+        isOpen={isRecommencerModalOpen}
+        onClose={() => setIsRecommencerModalOpen(false)}
+        onSubmit={handleRecommencerSubmit}
+        defaultLinkCount={userInfo?.linkCount || 10}
+      />
       <div className="p-4 md:p-8 bg-slate-100">
           <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-slate-800">Votre Guide Local est Prêt !</h2>
@@ -252,33 +341,18 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommenc
                       Exporter en JSON
                   </button>
 
-                  <div className="flex items-center gap-2">
-                      <select
-                          value={newLinkCount}
-                          onChange={(e) => setNewLinkCount(Number(e.target.value))}
-                          aria-label="Nombre d'entreprises à recommencer"
-                          className="block w-auto pl-3 pr-8 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-                      >
-                          <option value="5">5</option>
-                          <option value="10">10</option>
-                          <option value="15">15</option>
-                          <option value="20">20</option>
-                          <option value="25">25</option>
-                          <option value="50">50</option>
-                      </select>
-                      <button
-                        onClick={() => onRecommencer(newLinkCount)}
-                        className="inline-flex justify-center py-2 px-5 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
-                      >
-                          Recommencer
-                      </button>
-                  </div>
+                  <button
+                    onClick={() => setIsRecommencerModalOpen(true)}
+                    className="inline-flex justify-center py-2 px-5 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
+                  >
+                      Recommencer...
+                  </button>
 
                   <button
                       onClick={onReset}
                       className="w-full md:w-auto inline-flex justify-center py-2 px-5 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
                   >
-                      Générer un autre guide
+                      Nouveau Guide
                   </button>
               </div>
               {formattedTime && (
