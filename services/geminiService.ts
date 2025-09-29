@@ -255,8 +255,8 @@ export const generateLocalGuide = async (
     }));
 
     const batchEnrichmentPrompt = `
-      **MISSION :** Tu es un assistant de rédaction et un analyste commercial. Ta mission est d'enrichir une liste d'entreprises et d'évaluer leur potentiel en tant que prospect pour une agence web.
-      **CONTEXTE DE MON ENTREPRISE :** "${userInfo.description}". Tu dois adapter le ton pour que les descriptions des partenaires soient pertinentes pour mes clients.
+      **MISSION :** Tu es un assistant de rédaction et un analyste commercial. Ta mission est d'enrichir une liste d'entreprises et de les présenter de manière neutre et professionnelle.
+      **CONTEXTE DE MON ENTREPRISE (POUR INFORMATION UNIQUEMENT) :** "${userInfo.description}". Ce contexte t'aide à comprendre le type de partenaires recherchés, mais tu ne dois **JAMAIS** mentionner mon entreprise ou mon activité dans les textes que tu génères pour les partenaires.
 
       **DONNÉES (Source: Google Places API) - Liste JSON en entrée :**
       ${JSON.stringify(businessesToEnrich, null, 2)}
@@ -267,10 +267,10 @@ export const generateLocalGuide = async (
       2.  **ÉVALUATION COMMERCIALE (CRITIQUE) :** Ajoute une clé booléenne \`isProspectable\`. Mets la valeur à \`false\` si l'entreprise est clairement un grand groupe, une chaîne nationale/internationale, une franchise, une banque, une assurance, une grande surface ou une administration publique (ex: 'Société Générale', 'Carrefour', 'AXA', 'La Poste'). Mets \`true\` pour toutes les autres (artisans, TPE, PME, commerces indépendants, professions libérales).
       3.  **RECHERCHE SIRET :** Trouve le numéro de SIRET à 14 chiffres. Si introuvable, retourne une chaîne vide "". **NE JAMAIS INVENTER UN SIRET.**
       4.  **RÉDACTION (uniquement si \`isProspectable\` est \`true\`) :**
-          - **activity:** Une phrase complète et fluide décrivant l'activité principale et la spécialité. **RÈGLES STRICTES :** 1) La phrase ne doit contenir **AUCUNE ponctuation** (pas de virgules, points, tirets, etc.). 2) La phrase doit **OBLIGATOIREMENT** se terminer par la préposition " à". Exemple: 'Agence de voyages locale spécialisée dans les séjours sur mesure et les lunes de miel à'.
+          - **activity:** Une phrase complète, directe et fluide décrivant l'activité. **RÈGLES STRICTES :** 1) Commence directement par le type d'activité (ex: 'Garage automobile...', 'Boulangerie artisanale...'). Utilise des formulations comme 'spécialisé dans'. 2) La phrase ne doit contenir **AUCUNE ponctuation** (pas de virgules, points, tirets, etc.). 3) La phrase doit **OBLIGATOIREMENT** se terminer par la préposition " à". **Exemple de style souhaité :** 'Garage automobile local spécialisé dans la réparation et entretien de véhicules toutes marques à'. **Exemple à ne pas suivre :** 'Un garage automobile local offrant des services...'.
           - **city:** Le secteur, formaté ainsi : "[Ville] ([Code Postal]) dans le/la/les [Département]". Trouve le code postal et le département.
-          - **extract:** Un résumé de 2-3 phrases (environ 160 caractères), optimisé pour le SEO local.
-          - **description:** Une description détaillée (2-3 paragraphes) au format HTML, utilisant des balises <p>.
+          - **extract:** Un résumé de 2-3 phrases (environ 160 caractères), optimisé pour le SEO local. **RÈGLES STRICTES :** Utilise **TOUJOURS** la troisième personne du pluriel pour présenter l'entreprise (ex: "Ils proposent...", "Leur équipe..."). Ne fais **JAMAIS** référence à mon entreprise.
+          - **description:** Une description détaillée (2-3 paragraphes) au format HTML (<p>). **RÈGLES STRICTES :** 1) Utilise **TOUJOURS** la troisième personne du pluriel ("Ils se spécialisent dans...", "Leurs services incluent..."). 2) Ne fais **JAMAIS** référence à mon entreprise. 3) La description doit être complète et ne PAS se terminer par ' à'. 4) Termine **TOUJOURS** par un paragraphe final d'appel à l'action qui inclut le téléphone et l'adresse de l'entreprise. **Exemple de paragraphe final OBLIGATOIRE :** "<p>Pour découvrir leurs services ou obtenir un devis, n'hésitez pas à les contacter au [Numéro de Téléphone de l'entreprise] ou à leur rendre visite à l'adresse suivante : [Adresse Complète de l'entreprise].</p>"
       5.  **INFO CONTACT (Optionnel) :** Trouve le numéro direct du gérant, si trouvable publiquement. Sinon, chaîne vide "".
 
       **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Chaque objet du tableau doit correspondre à une entreprise de la liste d'entrée et contenir les clés : \`isProspectable\`, \`siret\`, \`activity\`, \`city\`, \`extract\`, \`description\`, \`managerPhone\`. L'ordre des objets dans ton tableau de sortie doit CORRESPONDRE EXACTEMENT à l'ordre des entreprises dans la liste d'entrée. N'ajoute aucun commentaire.
