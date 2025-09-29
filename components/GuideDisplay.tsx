@@ -1,7 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LocalGuide, GeneratedBusinessInfo, UserBusinessInfo } from '../types';
-import { generateB2BCategorySuggestions } from '../services/geminiService';
-
 
 interface GuideDisplayProps {
   guide: LocalGuide;
@@ -12,36 +10,18 @@ interface GuideDisplayProps {
   suggestions: string[];
 }
 
-// Icon Components
-const BriefcaseIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 2a2 2 0 00-2 2v1H6a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-2V4a2 2 0 00-2-2h-4zM9 4V3a1 1 0 011-1h4a1 1 0 011 1v1H9z" clipRule="evenodd" /></svg> );
-const MapPinIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 20l-4.95-5.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg> );
-const BuildingStorefrontIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" fill="currentColor" viewBox="0 0 16 16"><path d="M13.427 1.11C13.26 1.04 13.11 1 12.5 1h-9a1.5 1.5 0 0 0 0 3h9a1.5 1.5 0 0 0 0-3M1.713 5.055a.5.5 0 0 1 .573.03l1.375 1.455-1.018 2.853.011.01a.5.5 0 0 1-.34 1.113H2.5a.5.5 0 0 1 0-1h.562l.31-2.6-1.437-1.526A.5.5 0 0 1 1.713 5.055m11.47 0a.5.5 0 0 1 .573.03l1.375 1.455-1.018 2.853.011.01a.5.5 0 0 1-.34 1.113h-1.25a.5.5 0 0 1 0-1h.562l.31-2.6-1.437-1.526a.5.5 0 0 1 .03-.573ZM6.02 11.525a.5.5 0 0 1 .5-.5h2.96a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-2.96a.5.5 0 0 1-.5-.5v-1Z"/><path d="M16 5.333a1.65 1.65 0 0 1-1.65 1.65h-1.238a.5.5 0 0 1-.49-.356l-.24-1.202a.5.5 0 0 1 .356-.567L13.43 4.58a1.65 1.65 0 0 1 2.57 2.253l-1.43 1.29a.5.5 0 0 1-.685-.152l-1.35-2.25A.5.5 0 0 1 12.5 5h-9a.5.5 0 0 1-.256.44l-1.35 2.25a.5.5 0 0 1-.685.152L.073 6.833A1.65 1.65 0 0 1 2.57 4.58l.755.333a.5.5 0 0 1 .356.567l-.24 1.202a.5.5 0 0 1-.49.356H1.65A1.65 1.65 0 0 1 0 5.333V15a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V5.333Z"/></svg> );
-const DocumentTextIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 2a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h6a.5.5 0 010 1h-6a.5.5 0 01-.5-.5zm0 3a.5.5 0 01.5-.5h4a.5.5 0 010 1h-4a.5.5 0 01-.5-.5z" clipRule="evenodd" /></svg> );
-const AlignLeftIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h6a1 1 0 110 2H4a1 1 0 01-1-1zm0 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" /></svg> );
-const PhoneIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.518.759a11.024 11.024 0 005.176 5.176l.759-1.518a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg> );
-const GlobeAltIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM4.332 8.027a6.012 6.012 0 011.912-2.706C6.512 5.73 6.974 6 7.5 6A1.5 1.5 0 019 7.5V8a2 2 0 004 0 2 2 0 011.523-1.943A5.998 5.998 0 0116 10c0 .994-.252 1.927-.702 2.757A6.01 6.01 0 0113.088 15.02c.003.007.005.014.007.021A.5.5 0 0113 15h-1a.5.5 0 01-.5-.5v-1a.5.5 0 01.5-.5h1a.5.5 0 01.31-.112A4.011 4.011 0 0011 11c0-1.518-.93-2.825-2.25-3.415A2.99 2.99 0 009 8.5V9.5a.5.5 0 01-1 0V8a2 2 0 00-4 0 2 2 0 01-1.523-1.943A5.998 5.998 0 014 10c0 .158.012.314.034.469a.5.5 0 01-.48.531h-1a.5.5 0 01-.48-.531A6.004 6.004 0 014.332 8.027z" clipRule="evenodd" /></svg> );
-const UserCircleIcon = () => ( <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" /></svg> );
-
 const StarRating: React.FC<{ rating?: number; count?: number }> = ({ rating = 0, count = 0 }) => {
-  if (rating === 0) return null;
-  const fullStars = Math.floor(rating);
-  const halfStar = rating % 1 !== 0;
-  const emptyStars = 5 - fullStars - (halfStar ? 1 : 0);
-
+  if (!rating || rating === 0) return null;
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center">
-        {[...Array(fullStars)].map((_, i) => <svg key={`full-${i}`} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>)}
-        {halfStar && <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>}
-        {[...Array(emptyStars)].map((_, i) => <svg key={`empty-${i}`} className="w-5 h-5 text-slate-300" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>)}
-      </div>
-      <span className="text-sm text-slate-500 font-medium">{rating?.toFixed(1)}</span>
+    <div className="flex items-baseline gap-2 mt-1">
+      <span className="text-sm text-slate-600 font-semibold">Note Google :</span>
+      <span className="text-sm text-slate-800 font-medium">{rating?.toFixed(1)} / 5</span>
       <span className="text-sm text-slate-500">({count} avis)</span>
     </div>
   );
 };
 
-const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactNode; isTextarea?: boolean; isLink?: boolean; isHtml?: boolean; showWordCount?: boolean; }> = ({ label, value, icon, isTextarea = false, isLink = false, isHtml = false, showWordCount = false }) => {
+const CopyableField: React.FC<{ label: string; value: string; isTextarea?: boolean; isLink?: boolean; isHtml?: boolean; showWordCount?: boolean; }> = ({ label, value, isTextarea = false, isLink = false, isHtml = false, showWordCount = false }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = () => {
@@ -52,10 +32,8 @@ const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactN
 
     const countWords = (htmlString: string): number => {
         if (!htmlString) return 0;
-        // Strip HTML tags, replace with space to handle cases like <p>word</p><p>word</p>
         const textOnly = htmlString.replace(/<[^>]*>/g, ' ');
-        // Normalize whitespace and split by any number of spaces
-        const words = textOnly.trim().split(/\s+/).filter(Boolean); // filter(Boolean) removes empty strings
+        const words = textOnly.trim().split(/\s+/).filter(Boolean);
         return words.length;
     };
     
@@ -65,9 +43,8 @@ const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactN
 
     return (
         <div>
-            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 mb-1">
-                {icon}
-                <span>{label}</span>
+            <label className="block text-sm font-bold text-slate-700 mb-1">
+                {label}
             </label>
             <div className="flex items-center gap-2">
                  <div className="relative w-full">
@@ -98,14 +75,10 @@ const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactN
                         href={value}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-shrink-0 p-2 border border-slate-300 rounded-md shadow-sm text-slate-600 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        className="flex-shrink-0 text-sm text-blue-600 hover:underline"
                         title="Ouvrir le lien dans un nouvel onglet"
-                        aria-label="Ouvrir le lien dans un nouvel onglet"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                           <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                           <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                        </svg>
+                        Ouvrir
                     </a>
                 )}
                 <button
@@ -127,19 +100,18 @@ const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo; index: number; 
                 <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-teal-600">{`${index + 1}. ${business.name}`}</h3>
                 <StarRating rating={business.rating} count={business.userRatingCount} />
             </div>
-            <CopyableField label="Nom / Société" value={business.name} icon={<BuildingStorefrontIcon />} />
-            <CopyableField label="Activité et spécificité" value={business.activity} icon={<BriefcaseIcon />} />
-            <CopyableField label="Secteur / Ville" value={business.city} icon={<MapPinIcon />} />
-            <CopyableField label="Téléphone" value={business.phone} icon={<PhoneIcon />} />
-            {business.website && <CopyableField label="Site Web" value={business.website} icon={<GlobeAltIcon />} isLink />}
-            <CopyableField label="Extrait" value={business.extract} icon={<DocumentTextIcon />} isTextarea />
-            <CopyableField label="Description" value={business.description} icon={<AlignLeftIcon />} isHtml showWordCount />
+            <CopyableField label="Nom / Société" value={business.name} />
+            <CopyableField label="Activité et spécificité" value={business.activity} />
+            <CopyableField label="Secteur / Ville" value={business.city} />
+            <CopyableField label="Téléphone" value={business.phone} />
+            {business.website && <CopyableField label="Site Web" value={business.website} isLink />}
+            <CopyableField label="Extrait" value={business.extract} isTextarea />
+            <CopyableField label="Description" value={business.description} isHtml showWordCount />
              <div className="pt-4 border-t border-slate-200">
                 <button
                     onClick={() => onOpenBrief(business)}
-                    className="inline-flex items-center gap-2 justify-center py-2 px-4 border border-blue-600 text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
+                    className="inline-flex items-center justify-center py-2 px-4 border border-blue-600 text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
                 >
-                    <UserCircleIcon />
                     Brief commercial
                 </button>
             </div>
@@ -164,8 +136,8 @@ const CommercialBriefModal: React.FC<{ business: GeneratedBusinessInfo | null; o
       >
         <div className="p-5 border-b border-slate-200 flex justify-between items-center">
           <h3 id="brief-title" className="text-xl font-bold text-slate-800">Brief: {business.name}</h3>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-800" aria-label="Fermer">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 font-sans text-2xl font-bold" aria-label="Fermer">
+            &times;
           </button>
         </div>
         <div className="p-6 space-y-5 overflow-y-auto">
@@ -331,9 +303,11 @@ const RecommencerModal: React.FC<{
                   onChange={(e) => setLinkCount(Number(e.target.value))}
                   className="block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition bg-white"
                 >
-                  <option value="1">1 Entreprise</option>
+                  <option value="1">1 Entreprise (Coordination)</option>
+                  <option value="5">5 Entreprises</option>
                   <option value="10">10 Entreprises</option>
-                  <option value="20">20 Entreprises</option>
+                  <option value="15">15 Entreprises</option>
+                  <option value="25">25 Entreprises</option>
                   <option value="50">50 Entreprises</option>
                 </select>
               </div>
