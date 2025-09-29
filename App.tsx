@@ -10,6 +10,7 @@ const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.USER_INFO);
   const [generatedGuide, setGeneratedGuide] = useState<LocalGuide | null>(null);
   const [lastUserInfo, setLastUserInfo] = useState<UserBusinessInfo | null>(null);
+  const [lastUsedCategories, setLastUsedCategories] = useState<string[] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +32,7 @@ const App: React.FC = () => {
     };
   }, []);
 
-  const handleUserInfoSubmit = async (info: UserBusinessInfo) => {
+  const handleUserInfoSubmit = async (info: UserBusinessInfo, excludeCategories: string[] | null = null) => {
     setLastUserInfo(info);
     setIsLoading(true);
     setError(null);
@@ -64,7 +65,7 @@ const App: React.FC = () => {
     };
 
     try {
-      const guide = await generateLocalGuide(info, progressCallback);
+      const { guide, categoriesUsed } = await generateLocalGuide(info, progressCallback, excludeCategories);
       const endTime = Date.now();
       setGenerationTime(endTime - startTime);
 
@@ -73,6 +74,7 @@ const App: React.FC = () => {
       setProgress(100);
       setLoadingMessage("Guide généré avec succès !");
       setGeneratedGuide(guide);
+      setLastUsedCategories(categoriesUsed);
       setStep(AppStep.DISPLAY_GUIDE);
 
     } catch (err) {
@@ -95,12 +97,14 @@ const App: React.FC = () => {
     setGenerationTime(null);
     clearProgressInterval();
     setLastUserInfo(null);
+    setLastUsedCategories(null);
   };
 
-  const handleRegenerate = (newLinkCount: number) => {
+  const handleRecommencer = (newLinkCount: number) => {
     if (lastUserInfo) {
       const newInfo = { ...lastUserInfo, linkCount: newLinkCount };
-      handleUserInfoSubmit(newInfo);
+      // Pass the last used categories to get a new batch
+      handleUserInfoSubmit(newInfo, lastUsedCategories);
     }
   };
 
@@ -121,7 +125,7 @@ const App: React.FC = () => {
       </div>
     );
   } else if (step === AppStep.DISPLAY_GUIDE) {
-    content = generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} onRegenerate={handleRegenerate} userInfo={lastUserInfo} generationTime={generationTime} /> : null;
+    content = generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} onRecommencer={handleRecommencer} userInfo={lastUserInfo} generationTime={generationTime} /> : null;
   } else {
     // Default to USER_INFO step
     content = <UserInputForm onSubmit={handleUserInfoSubmit} />;
@@ -136,8 +140,8 @@ const App: React.FC = () => {
             {content}
         </div>
       </main>
-      <footer className="text-center py-6 text-slate-500 text-sm">
-        <p>Propulsé par l'IA de Google Gemini</p>
+      <footer className="text-center py-6 text-slate-500">
+        <p>Générateur de Guide Local IA - V1.0</p>
       </footer>
     </div>
   );

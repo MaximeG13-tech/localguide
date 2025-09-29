@@ -4,7 +4,7 @@ import { LocalGuide, GeneratedBusinessInfo, UserBusinessInfo } from '../types';
 interface GuideDisplayProps {
   guide: LocalGuide;
   onReset: () => void;
-  onRegenerate: (newLinkCount: number) => void;
+  onRecommencer: (newLinkCount: number) => void;
   userInfo: UserBusinessInfo | null;
   generationTime: number | null;
 }
@@ -196,7 +196,7 @@ const CommercialBriefModal: React.FC<{ business: GeneratedBusinessInfo | null; o
 };
 
 
-const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRegenerate, userInfo, generationTime }) => {
+const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommencer, userInfo, generationTime }) => {
   const [modalBusiness, setModalBusiness] = useState<GeneratedBusinessInfo | null>(null);
   const [newLinkCount, setNewLinkCount] = useState<number>(userInfo?.linkCount || 5);
 
@@ -243,7 +243,7 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRegenerat
           </div>
           
           {/* --- Contols Header --- */}
-          <div className="p-4 bg-white rounded-xl shadow-md border border-slate-200 mb-8 space-y-4">
+          <div className="mb-8 space-y-4">
               <div className="flex flex-col md:flex-row justify-center items-center gap-4 flex-wrap">
                   <button
                       onClick={handleExportJson}
@@ -256,7 +256,7 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRegenerat
                       <select
                           value={newLinkCount}
                           onChange={(e) => setNewLinkCount(Number(e.target.value))}
-                          aria-label="Nombre d'entreprises à regénérer"
+                          aria-label="Nombre d'entreprises à recommencer"
                           className="block w-auto pl-3 pr-8 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
                       >
                           <option value="5">5</option>
@@ -267,10 +267,10 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRegenerat
                           <option value="50">50</option>
                       </select>
                       <button
-                        onClick={() => onRegenerate(newLinkCount)}
+                        onClick={() => onRecommencer(newLinkCount)}
                         className="inline-flex justify-center py-2 px-5 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
                       >
-                          Regénérer
+                          Recommencer
                       </button>
                   </div>
 

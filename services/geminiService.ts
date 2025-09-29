@@ -81,8 +81,9 @@ const extractJson = (text: string): string => {
 
 export const generateLocalGuide = async (
   userInfo: UserBusinessInfo,
-  onProgress: (message: string) => void
-): Promise<LocalGuide> => {
+  onProgress: (message: string) => void,
+  excludeCategories: string[] | null = null
+): Promise<{ guide: LocalGuide; categoriesUsed: string[] }> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   // --- Étape 1: Géocodage de l'adresse ---
@@ -91,194 +92,192 @@ export const generateLocalGuide = async (
   const location = await geocodeAddress(userInfo.partnerSearchAddress);
   console.log(`Coordonnées obtenues:`, location);
 
-  // --- Étape 2: L'IA définit une stratégie de recherche ---
-  onProgress("L'IA définit une stratégie de recherche...");
-  console.log("Étape 2: L'IA définit les catégories de recherche...");
-  const getCategoriesPrompt = `
-    **MISSION:** Tu es un stratège en marketing local. Ton objectif est d'identifier les meilleures catégories d'entreprises partenaires pour mon activité, à utiliser avec l'API Google Places.
-    
-    **CONTEXTE DE MON ENTREPRISE:**
-    - Nom: "${userInfo.name}"
-    - Activité: "${userInfo.description}"
-    
-    **TACHES:**
-    1. Analyse mon activité et identifie des types de partenaires commerciaux complémentaires, non-concurrents.
-    2. Choisis entre 3 et 5 catégories pertinentes dans la liste fournie pour maximiser les chances de trouver des résultats variés.
+  // --- Boucle de recherche principale pour garantir le nombre de résultats ---
+  const finalQualifiedProspects: LocalGuide = [];
+  const allUsedCategories = new Set<string>(excludeCategories || []);
+  const MAX_ATTEMPTS = 5; // Limite de sécurité pour éviter les boucles infinies
+  let currentAttempt = 0;
 
-    **RÈGLES CRITIQUES :**
-    1. Tu dois **OBLIGATOIREMENT et EXCLUSIVEMENT** choisir des catégories dans la liste des types valides fournie ci-dessous.
-    2. Ne retourne **AUCUNE** catégorie qui n'est pas textuellement présente dans cette liste. N'invente rien.
-    3. Si une catégorie idéale (comme "architecte" ou "paysagiste") n'est pas dans la liste, tu dois choisir la catégorie valide la plus proche ou la plus pertinente (ex: "home_goods_store", "store", "florist").
+  while(finalQualifiedProspects.length < userInfo.linkCount && currentAttempt < MAX_ATTEMPTS) {
+    currentAttempt++;
+    console.log(`--- DÉBUT DE LA TENTATIVE DE RECHERCHE N°${currentAttempt} ---`);
+    onProgress(`Recherche de partenaires... (Essai ${currentAttempt}/${MAX_ATTEMPTS})`);
 
-    **LISTE DES CATÉGORIES VALIDES AUTORISÉES :**
-    ${JSON.stringify(Array.from(VALID_SEARCHABLE_PLACE_TYPES))}
-    
-    **FORMAT DE SORTIE ATTENDU:**
-    Retourne UNIQUEMENT un tableau JSON valide contenant les chaînes de caractères choisies. Exemple: ["plumber", "electrician", "hardware_store"]`;
+    // --- Étape 2: L'IA définit une stratégie de recherche ---
+    const getCategoriesPrompt = `
+      **MISSION:** Tu es un stratège en marketing local. Ton objectif est d'identifier les meilleures catégories d'entreprises partenaires pour mon activité, à utiliser avec l'API Google Places.
+      
+      **CONTEXTE DE MON ENTREPRISE:**
+      - Nom: "${userInfo.name}"
+      - Activité: "${userInfo.description}"
+      
+      **TACHES:**
+      1. Analyse mon activité et identifie des types de partenaires commerciaux complémentaires, non-concurrents.
+      2. Choisis entre 3 et 5 catégories pertinentes dans la liste fournie pour maximiser les chances de trouver des résultats variés.
 
-  let categories: string[];
-  try {
-    const categoryResponse = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: getCategoriesPrompt
-    });
-    const parsableCategoryString = extractJson(categoryResponse.text);
-    const suggestedCategories: string[] = JSON.parse(parsableCategoryString);
-    console.log(`Catégories suggérées par l'IA:`, suggestedCategories);
-    
-    // Filter against the valid list to ensure API call safety
-    categories = suggestedCategories.filter(category => VALID_SEARCHABLE_PLACE_TYPES.has(category));
+      **RÈGLES CRITIQUES :**
+      1. Tu dois **OBLIGATOIREMENT et EXCLUSIVEMENT** choisir des catégories dans la liste des types valides fournie ci-dessous.
+      2. Ne retourne **AUCUNE** catégorie qui n'est pas textuellement présente dans cette liste. N'invente rien.
+      3. Si une catégorie idéale (comme "architecte" ou "paysagiste") n'est pas dans la liste, tu dois choisir la catégorie valide la plus proche ou la plus pertinente (ex: "home_goods_store", "store", "florist").
+      ${allUsedCategories.size > 0 ? `4. **EXCLUSION :** La liste suivante contient des catégories déjà utilisées. NE CHOISIS AUCUNE de ces catégories : ${JSON.stringify(Array.from(allUsedCategories))}` : ''}
 
-    if (categories.length === 0) {
-        console.error("Aucune des catégories suggérées par l'IA n'est valide.", suggestedCategories);
-        throw new Error(`L'IA n'a pas réussi à identifier de catégories de recherche valides. Les suggestions étaient : ${suggestedCategories.join(', ') || 'aucune'}. Veuillez réessayer.`);
-    }
+      **LISTE DES CATÉGORIES VALIDES AUTORISÉES :**
+      ${JSON.stringify(Array.from(VALID_SEARCHABLE_PLACE_TYPES))}
+      
+      **FORMAT DE SORTIE ATTENDU:**
+      Retourne UNIQUEMENT un tableau JSON valide contenant les chaînes de caractères choisies. Exemple: ["plumber", "electrician", "hardware_store"]`;
 
-  } catch (error) {
-    console.error("Erreur lors de l'analyse des catégories JSON de l'IA:", error);
-    throw new Error(`L'IA n'a pas retourné un format de catégorie valide. ${error instanceof Error ? error.message : ''}`);
-  }
-  console.log(`Catégories valides et filtrées:`, categories);
-
-  // --- Étape 3: Recherche des entreprises à proximité via l'API Google Places ---
-  onProgress("Recherche des entreprises partenaires à proximité...");
-  console.log("Étape 3: Recherche via Google Places API...");
-  const placesUrl = 'https://places.googleapis.com/v1/places:searchNearby';
-  const placesResponse = await fetch(placesUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
-      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.rating,places.userRatingCount'
-    },
-    body: JSON.stringify({
-      includedTypes: categories,
-      maxResultCount: Math.min(20, userInfo.linkCount + 5), // Fetch a bit more to allow filtering
-      locationRestriction: {
-        circle: {
-          center: { latitude: location.lat, longitude: location.lng },
-          radius: userInfo.partnerSearchRadius * 1000,
-        },
-      },
-      languageCode: "fr",
-      rankPreference: "DISTANCE"
-    }),
-  });
-  
-  if (!placesResponse.ok) {
-     const errorBody = await placesResponse.json();
-     const errorMessage = `Erreur de recherche Google Places - ${errorBody.error.message || 'Erreur inconnue'}. Veuillez vérifier que l'API "Places API" est activée dans votre console Google Cloud et que votre clé est valide.`;
-     throw new Error(errorMessage);
-  }
-  const placesData = await placesResponse.json();
-  console.log(`${placesData.places?.length || 0} entreprises trouvées par Google Places.`);
-
-  if (!placesData.places || placesData.places.length === 0) {
-    throw new Error("Aucune entreprise partenaire n'a été trouvée dans le périmètre défini avec les catégories suggérées par l'IA. Essayez d'élargir le rayon de recherche.");
-  }
-  
-  let foundPartners: Partial<GeneratedBusinessInfo>[] = placesData.places.map((place: any) => ({
-    name: place.displayName?.text,
-    address: place.formattedAddress,
-    phone: place.internationalPhoneNumber,
-    website: place.websiteUri,
-    googleMapsUri: place.googleMapsUri,
-    rating: place.rating,
-    userRatingCount: place.userRatingCount,
-  })).filter(Boolean);
-
-  // Filtrage selon la préférence de site web
-  if (userInfo.websitePreference === 'with') {
-    foundPartners = foundPartners.filter(p => p.website);
-  } else if (userInfo.websitePreference === 'without') {
-    foundPartners = foundPartners.filter(p => !p.website);
-  }
-  
-  // Limiter au nombre demandé
-  foundPartners = foundPartners.slice(0, userInfo.linkCount);
-  
-  if (foundPartners.length === 0) {
-      throw new Error("Aucune entreprise ne correspond à votre critère de 'présence de site internet' après la recherche initiale. Essayez l'option 'Mix'.");
-  }
-
-
-  // --- Étape 4: Enrichir en masse les entreprises trouvées avec un second appel IA ---
-  onProgress(`Enrichissement de ${foundPartners.length} entreprises...`);
-  console.log(`Étape 4: Enrichissement de ${foundPartners.length} entreprises par l'IA...`);
-  const businessesToEnrich = foundPartners.map(p => ({
-    name: p.name,
-    address: p.address,
-    phone: p.phone || 'Non fourni',
-    website: p.website || 'Non fourni',
-  }));
-
-  const batchEnrichmentPrompt = `
-    **MISSION :** Tu es un assistant de rédaction et de recherche administrative. Ta mission est d'enrichir une liste de données d'entreprises avec du contenu rédactionnel et des numéros de SIRET.
-    **CONTEXTE DE MON ENTREPRISE :** "${userInfo.description}". Tu dois adapter le ton et le contenu pour que les descriptions des partenaires soient pertinentes pour mes clients.
-
-    **DONNÉES (Source: Google Places API) - Liste JSON en entrée :**
-    ${JSON.stringify(businessesToEnrich, null, 2)}
-
-    **TACHES À ACCOMPLIR :**
-    Pour CHAQUE entreprise de la liste, tu dois accomplir les tâches suivantes :
-    1.  **RECHERCHE SIRET (CRITIQUE) :** Trouve le numéro de SIRET à 14 chiffres via une recherche Google. C'est la priorité. Si introuvable, retourne une chaîne vide "". **NE JAMAIS INVENTER UN SIRET.**
-    2.  **RÉDACTION :** Rédige les champs suivants:
-        - **activity:** Une phrase courte (10-15 mots) décrivant l'activité principale et la spécialité.
-        - **city:** Le secteur, formaté ainsi : "[Ville] ([Code Postal]) [préposition] [Département]". Trouve le code postal et le département à partir de l'adresse fournie. La préposition doit suivre les règles grammaticales françaises (ex: "en Dordogne", "dans le Doubs", "à La Réunion").
-        - **extract:** Un résumé de 2-3 phrases (environ 160 caractères), optimisé pour le SEO local.
-        - **description:** Une description détaillée (2-3 paragraphes) au format HTML, utilisant des balises <p>.
-    3.  **INFO CONTACT (Optionnel) :** Trouve le numéro direct du gérant, si trouvable publiquement. Sinon, chaîne vide "".
-
-    **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Chaque objet du tableau doit correspondre à une entreprise de la liste d'entrée et contenir les clés : \`siret\`, \`activity\`, \`city\`, \`extract\`, \`description\`, \`managerPhone\`. L'ordre des objets dans ton tableau de sortie doit CORRESPONDRE EXACTEMENT à l'ordre des entreprises dans la liste d'entrée. N'ajoute aucun commentaire.
-    `;
-    
-    let enrichedDataArray: any[] = [];
+    let newCategories: string[];
     try {
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: batchEnrichmentPrompt,
-            config: { tools: [{ googleSearch: {} }] }
-        });
+      const categoryResponse = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: getCategoriesPrompt
+      });
+      const parsableCategoryString = extractJson(categoryResponse.text);
+      const suggestedCategories: string[] = JSON.parse(parsableCategoryString);
+      console.log(`(Essai ${currentAttempt}) Catégories suggérées par l'IA:`, suggestedCategories);
+      
+      newCategories = suggestedCategories.filter(category => VALID_SEARCHABLE_PLACE_TYPES.has(category) && !allUsedCategories.has(category));
 
-        const parsableString = extractJson(response.text);
-        enrichedDataArray = JSON.parse(parsableString);
-        
-        if (enrichedDataArray.length !== foundPartners.length) {
-            console.warn("Avertissement: L'IA n'a pas retourné le même nombre d'objets enrichis que d'entreprises trouvées. Le guide pourrait être incomplet.");
-        }
+      if (newCategories.length === 0) {
+          console.warn(`(Essai ${currentAttempt}) L'IA n'a pas réussi à identifier de NOUVELLES catégories de recherche valides.`);
+          break; // Sortir de la boucle si on ne trouve plus de nouvelles catégories
+      }
+      newCategories.forEach(cat => allUsedCategories.add(cat));
 
     } catch (error) {
-        console.error(`Erreur d'enrichissement de l'IA (Étape 4 - Batch):`, error);
-        throw new Error("L'IA n'a pas pu enrichir les données des entreprises. Le format de sa réponse était peut-être incorrect ou le JSON était malformé.");
+      console.error(`(Essai ${currentAttempt}) Erreur lors de l'analyse des catégories JSON de l'IA:`, error);
+      throw new Error(`L'IA n'a pas retourné un format de catégorie valide. ${error instanceof Error ? error.message : ''}`);
     }
+    console.log(`(Essai ${currentAttempt}) Catégories valides et filtrées utilisées pour cette recherche:`, newCategories);
 
-  // --- Étape 5: Fusionner les données ---
-  onProgress("Finalisation du guide...");
-  console.log("Étape 5: Finalisation du guide...");
-  const finalGuide: LocalGuide = foundPartners.map((partner, index) => {
-    const enrichedData = enrichedDataArray[index];
-    if (!enrichedData) return null;
+    // --- Étape 3: Recherche des entreprises à proximité via l'API Google Places ---
+    onProgress(`Recherche d'entreprises pour les catégories: ${newCategories.join(', ')}...`);
+    const placesUrl = 'https://places.googleapis.com/v1/places:searchNearby';
+    const placesResponse = await fetch(placesUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.rating,places.userRatingCount'
+      },
+      body: JSON.stringify({
+        includedTypes: newCategories,
+        maxResultCount: 20,
+        locationRestriction: {
+          circle: { center: { latitude: location.lat, longitude: location.lng }, radius: userInfo.partnerSearchRadius * 1000 },
+        },
+        languageCode: "fr",
+        rankPreference: "DISTANCE"
+      }),
+    });
+    
+    if (!placesResponse.ok) {
+       const errorBody = await placesResponse.json();
+       const errorMessage = `Erreur de recherche Google Places - ${errorBody.error.message || 'Erreur inconnue'}. Veuillez vérifier que l'API "Places API" est activée dans votre console Google Cloud et que votre clé est valide.`;
+       throw new Error(errorMessage);
+    }
+    const placesData = await placesResponse.json();
+    console.log(`(Essai ${currentAttempt}) ${placesData.places?.length || 0} entreprises trouvées par Google Places.`);
 
-    return {
-        name: partner.name || 'Nom non trouvé',
-        address: partner.address || 'Adresse non trouvée',
-        phone: partner.phone || '',
-        website: partner.website || undefined,
-        googleMapsUri: partner.googleMapsUri || undefined,
-        rating: partner.rating || undefined,
-        userRatingCount: partner.userRatingCount || undefined,
-        activity: enrichedData.activity || '',
-        city: enrichedData.city || '',
-        extract: enrichedData.extract || '',
-        description: enrichedData.description || '<p>Description non disponible.</p>',
-        siret: enrichedData.siret || undefined,
-        managerPhone: enrichedData.managerPhone || undefined,
-    };
-  }).filter(item => item !== null) as LocalGuide;
+    if (!placesData.places || placesData.places.length === 0) {
+      console.log(`(Essai ${currentAttempt}) Aucune entreprise trouvée pour ces catégories, on continue avec d'autres.`);
+      continue; // Passe à l'itération suivante pour essayer d'autres catégories
+    }
+    
+    const foundPartners: Partial<GeneratedBusinessInfo>[] = placesData.places.map((place: any) => ({
+      name: place.displayName?.text,
+      address: place.formattedAddress,
+      phone: place.internationalPhoneNumber,
+      website: place.websiteUri,
+      googleMapsUri: place.googleMapsUri,
+      rating: place.rating,
+      userRatingCount: place.userRatingCount,
+    })).filter(Boolean);
 
-  if (finalGuide.length === 0) {
-    throw new Error("L'enrichissement par l'IA a échoué pour toutes les entreprises trouvées. Impossible de générer le guide.");
+    // --- Étape 4: Enrichir et filtrer en masse les entreprises trouvées avec un second appel IA ---
+    onProgress(`Analyse et enrichissement de ${foundPartners.length} entreprises... (${finalQualifiedProspects.length}/${userInfo.linkCount} trouvés)`);
+    const businessesToEnrich = foundPartners.map(p => ({
+      name: p.name,
+      address: p.address,
+      phone: p.phone || 'Non fourni',
+      website: p.website || 'Non fourni',
+    }));
+
+    const batchEnrichmentPrompt = `
+      **MISSION :** Tu es un assistant de rédaction et un analyste commercial. Ta mission est d'enrichir une liste d'entreprises et d'évaluer leur potentiel en tant que prospect pour une agence web.
+      **CONTEXTE DE MON ENTREPRISE :** "${userInfo.description}". Tu dois adapter le ton pour que les descriptions des partenaires soient pertinentes pour mes clients.
+
+      **DONNÉES (Source: Google Places API) - Liste JSON en entrée :**
+      ${JSON.stringify(businessesToEnrich, null, 2)}
+
+      **TACHES À ACCOMPLIR :**
+      Pour CHAQUE entreprise de la liste, tu dois accomplir les tâches suivantes :
+      1.  **ÉVALUATION COMMERCIALE (CRITIQUE) :** Ajoute une clé booléenne \`isProspectable\`. Mets la valeur à \`false\` si l'entreprise est clairement un grand groupe, une chaîne nationale/internationale, une franchise, une banque, une assurance, une grande surface ou une administration publique (ex: 'Société Générale', 'Carrefour', 'AXA', 'La Poste'). Mets \`true\` pour toutes les autres (artisans, TPE, PME, commerces indépendants, professions libérales).
+      2.  **RECHERCHE SIRET :** Trouve le numéro de SIRET à 14 chiffres. Si introuvable, retourne une chaîne vide "". **NE JAMAIS INVENTER UN SIRET.**
+      3.  **RÉDACTION (uniquement si \`isProspectable\` est \`true\`) :**
+          - **activity:** Une phrase courte (10-15 mots) décrivant l'activité principale et la spécialité.
+          - **city:** Le secteur, formaté ainsi : "[Ville] ([Code Postal]) [préposition] [Département]". Trouve le code postal et le département.
+          - **extract:** Un résumé de 2-3 phrases (environ 160 caractères), optimisé pour le SEO local.
+          - **description:** Une description détaillée (2-3 paragraphes) au format HTML, utilisant des balises <p>.
+      4.  **INFO CONTACT (Optionnel) :** Trouve le numéro direct du gérant, si trouvable publiquement. Sinon, chaîne vide "".
+
+      **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Chaque objet du tableau doit correspondre à une entreprise de la liste d'entrée et contenir les clés : \`isProspectable\`, \`siret\`, \`activity\`, \`city\`, \`extract\`, \`description\`, \`managerPhone\`. L'ordre des objets dans ton tableau de sortie doit CORRESPONDRE EXACTEMENT à l'ordre des entreprises dans la liste d'entrée. N'ajoute aucun commentaire.
+      `;
+      
+      let enrichedDataArray: any[] = [];
+      try {
+          const response = await ai.models.generateContent({
+              model: "gemini-2.5-flash",
+              contents: batchEnrichmentPrompt,
+              config: { tools: [{ googleSearch: {} }] }
+          });
+          const parsableString = extractJson(response.text);
+          enrichedDataArray = JSON.parse(parsableString);
+      } catch (error) {
+          console.error(`(Essai ${currentAttempt}) Erreur d'enrichissement IA, on ignore ce lot:`, error);
+          continue; // Si l'enrichissement échoue, on passe à l'essai suivant
+      }
+
+    // --- Étape 5: Fusionner les données ---
+    const qualifiedProspectsFromBatch: LocalGuide = foundPartners.map((partner, index) => {
+      const enrichedData = enrichedDataArray[index];
+      if (!enrichedData || enrichedData.isProspectable === false) {
+          return null;
+      }
+      return {
+          name: partner.name || 'Nom non trouvé',
+          address: partner.address || 'Adresse non trouvée',
+          phone: partner.phone || '',
+          website: partner.website || undefined,
+          googleMapsUri: partner.googleMapsUri || undefined,
+          rating: partner.rating || undefined,
+          userRatingCount: partner.userRatingCount || undefined,
+          activity: enrichedData.activity || '',
+          city: enrichedData.city || '',
+          extract: enrichedData.extract || '',
+          description: enrichedData.description || '<p>Description non disponible.</p>',
+          siret: enrichedData.siret || undefined,
+          managerPhone: enrichedData.managerPhone || undefined,
+      };
+    }).filter(item => item !== null) as LocalGuide;
+    
+    finalQualifiedProspects.push(...qualifiedProspectsFromBatch);
+    console.log(`(Essai ${currentAttempt}) ${qualifiedProspectsFromBatch.length} prospects qualifiés ajoutés. Total actuel: ${finalQualifiedProspects.length}/${userInfo.linkCount}.`);
   }
 
-  return finalGuide;
+  // --- Finalisation après la boucle ---
+  onProgress("Finalisation du guide...");
+  console.log("Finalisation du guide...");
+  
+  if (finalQualifiedProspects.length < userInfo.linkCount) {
+    console.warn(`Avertissement: Impossible de trouver le nombre de prospects demandés (${userInfo.linkCount}). ${finalQualifiedProspects.length} trouvés après ${currentAttempt} essais.`);
+    if (finalQualifiedProspects.length === 0) {
+       throw new Error(`Aucun prospect qualifié n'a pu être trouvé après ${currentAttempt} tentatives. Essayez d'élargir considérablement le rayon de recherche ou de reformuler la description de votre activité.`);
+    }
+  }
+
+  const finalGuide = finalQualifiedProspects.slice(0, userInfo.linkCount);
+
+  return { guide: finalGuide, categoriesUsed: Array.from(allUsedCategories) };
 };

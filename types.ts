@@ -9,7 +9,6 @@ export interface UserBusinessInfo {
   linkCount: number;
   partnerSearchAddress: string;
   partnerSearchRadius: number;
-  websitePreference: 'with' | 'without' | 'mix';
 }
 
 export interface GeneratedBusinessInfo {

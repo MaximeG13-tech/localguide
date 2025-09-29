@@ -5,24 +5,17 @@ interface UserInputFormProps {
   onSubmit: (info: UserBusinessInfo) => void;
 }
 
-const websiteOptions = [
-    { id: 'mix', label: 'Mix' },
-    { id: 'with', label: 'Avec' },
-    { id: 'without', label: 'Sans' },
-] as const;
-
 const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [partnerAddress, setPartnerAddress] = useState('');
   const [radius, setRadius] = useState(5);
   const [linkCount, setLinkCount] = useState(5);
-  const [websitePreference, setWebsitePreference] = useState<'with' | 'without' | 'mix'>('mix');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name && description && partnerAddress) {
-        onSubmit({ name, description, linkCount, partnerSearchAddress: partnerAddress, partnerSearchRadius: radius, websitePreference });
+        onSubmit({ name, description, linkCount, partnerSearchAddress: partnerAddress, partnerSearchRadius: radius });
     }
   };
 
@@ -133,37 +126,6 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
             </select>
         </div>
         
-        <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-                Présence de site internet
-            </label>
-            <div className="grid grid-cols-3 gap-2 rounded-lg bg-slate-100 p-1">
-                {websiteOptions.map((option) => (
-                    <div key={option.id}>
-                        <input
-                            type="radio"
-                            id={`website-${option.id}`}
-                            name="website-preference"
-                            value={option.id}
-                            checked={websitePreference === option.id}
-                            onChange={() => setWebsitePreference(option.id)}
-                            className="sr-only"
-                        />
-                        <label
-                            htmlFor={`website-${option.id}`}
-                            className={`text-center block cursor-pointer rounded-md py-2 px-3 text-sm font-medium transition ${
-                                websitePreference === option.id
-                                    ? 'bg-white text-blue-600 shadow-sm'
-                                    : 'text-slate-600 hover:bg-slate-200'
-                            }`}
-                        >
-                            {option.label}
-                        </label>
-                    </div>
-                ))}
-            </div>
-        </div>
-
         <div className="flex justify-end pt-4">
           <button
             type="submit"
