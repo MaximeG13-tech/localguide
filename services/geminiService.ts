@@ -1,3 +1,5 @@
+
+
 import { GoogleGenAI } from "@google/genai";
 import { UserBusinessInfo, LocalGuide, GeneratedBusinessInfo } from '../types';
 
@@ -112,6 +114,7 @@ export const generateLocalGuide = async (
   userInfo: UserBusinessInfo,
   onProgress: (message: string) => void,
   excludeCategories: string[] | null = null,
+  // FIX: The userFeedback parameter type was corrected from `string[] | null` to `string | null` to align with the actual data type being passed from the calling functions in `App.tsx`.
   userFeedback: string | null = null
 ): Promise<{ guide: LocalGuide; categoriesUsed: string[] }> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -153,7 +156,7 @@ export const generateLocalGuide = async (
       2. Ne retourne **AUCUNE** catégorie qui n'est pas textuellement présente dans cette liste. N'invente rien.
       3. Si une catégorie idéale (comme "architecte" ou "paysagiste") n'est pas dans la liste, tu dois choisir la catégorie valide la plus proche ou la plus pertinente (ex: "home_goods_store", "store", "florist").
       ${allUsedCategories.size > 0 ? `4. **EXCLUSION :** La liste suivante contient des catégories déjà utilisées. NE CHOISIS AUCUNE de ces catégories : ${JSON.stringify(Array.from(allUsedCategories))}` : ''}
-      ${userFeedback ? `5. **FEEDBACK UTILISATEUR SUR LA RECHERCHE PRÉCÉDENTE :** "${userFeedback}". Utilise impérativement ce retour pour affiner ta nouvelle sélection de catégories. Si des activités sont suggérées (ex: "Feedback Suggéré: Architectes, Plombiers"), traduis-les en catégories valides de la liste et priorise-les.` : ''}
+      ${userFeedback ? `5. **PRIORITÉ ABSOLUE - FEEDBACK UTILISATEUR :** Le retour suivant est crucial: \`"${userFeedback}"\`. Ta tâche principale est de traduire les activités suggérées (ex: 'Cliniques Vétérinaires', 'Éleveurs Canins') en catégories de la \`LISTE DES CATÉGORIES VALIDES AUTORISÉES\`. Ta sélection DOIT refléter cette demande en priorité.` : ''}
 
       **LISTE DES CATÉGORIES VALIDES AUTORISÉES :**
       ${JSON.stringify(Array.from(VALID_SEARCHABLE_PLACE_TYPES))}
@@ -270,7 +273,7 @@ export const generateLocalGuide = async (
           - **activity:** Une phrase complète, directe et fluide décrivant l'activité. **RÈGLES STRICTES :** 1) Commence directement par le type d'activité (ex: 'Garage automobile...', 'Boulangerie artisanale...'). Utilise des formulations comme 'spécialisé dans'. 2) La phrase ne doit contenir **AUCUNE ponctuation** (pas de virgules, points, tirets, etc.). 3) La phrase doit **OBLIGATOIREMENT** se terminer par la préposition " à". **Exemple de style souhaité :** 'Garage automobile local spécialisé dans la réparation et entretien de véhicules toutes marques à'. **Exemple à ne pas suivre :** 'Un garage automobile local offrant des services...'.
           - **city:** Le secteur, formaté ainsi : "[Ville] ([Code Postal]) dans le/la/les [Département]". Trouve le code postal et le département.
           - **extract:** Un résumé de 2-3 phrases (environ 160 caractères), optimisé pour le SEO local. **RÈGLES STRICTES :** Utilise **TOUJOURS** la troisième personne du pluriel pour présenter l'entreprise (ex: "Ils proposent...", "Leur équipe..."). Ne fais **JAMAIS** référence à mon entreprise.
-          - **description:** Une description détaillée (2-3 paragraphes) au format HTML (<p>). **RÈGLES STRICTES :** 1) Utilise **TOUJOURS** la troisième personne du pluriel ("Ils se spécialisent dans...", "Leurs services incluent..."). 2) Ne fais **JAMAIS** référence à mon entreprise. 3) La description doit être complète et ne PAS se terminer par ' à'. 4) Termine **TOUJOURS** par un paragraphe final d'appel à l'action qui inclut le téléphone et l'adresse de l'entreprise. **Exemple de paragraphe final OBLIGATOIRE :** "<p>Pour découvrir leurs services ou obtenir un devis, n'hésitez pas à les contacter au [Numéro de Téléphone de l'entreprise] ou à leur rendre visite à l'adresse suivante : [Adresse Complète de l'entreprise].</p>"
+          - **description:** Une description détaillée (2-3 paragraphes) au format HTML (<p>). **RÈGLES STRICTES :** 1) Utilise **TOUJOURS** la troisième personne du pluriel ("Ils se spécialisent dans...", "Leurs services incluent..."). 2) Ne fais **JAMAIS** référence à mon entreprise. 3) La description doit être complète et ne PAS se terminer par ' à'. 4) Termine **TOUJOURS** par un paragraphe final d'appel à l'action. **RÈGLE CRUCIALE :** Cette phrase d'accroche doit être **naturelle et adaptée au type d'activité**. Évite la répétition. N'utilise "demander un devis" que si c'est pertinent (artisans, services...). Sois créatif. Intègre TOUJOURS le téléphone et l'adresse complète. **Exemples pour t'inspirer :** Pour un restaurant : "<p>Pour réserver une table et savourer leur cuisine, contactez-les au [Numéro de Téléphone] ou rendez-vous directement à l'adresse : [Adresse Complète].</p>" Pour une boutique : "<p>N'hésitez pas à leur rendre visite à l'adresse suivante : [Adresse Complète] pour explorer leur sélection, ou appelez-les au [Numéro de Téléphone] pour toute question.</p>" Pour une agence immobilière : "<p>Pour discuter de votre projet immobilier ou organiser une visite, vous pouvez les joindre au [Numéro de Téléphone] ou vous rendre à leur agence située au [Adresse Complète].</p>"
       5.  **INFO CONTACT (Optionnel) :** Trouve le numéro direct du gérant, si trouvable publiquement. Sinon, chaîne vide "".
 
       **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Chaque objet du tableau doit correspondre à une entreprise de la liste d'entrée et contenir les clés : \`isProspectable\`, \`siret\`, \`activity\`, \`city\`, \`extract\`, \`description\`, \`managerPhone\`. L'ordre des objets dans ton tableau de sortie doit CORRESPONDRE EXACTEMENT à l'ordre des entreprises dans la liste d'entrée. N'ajoute aucun commentaire.

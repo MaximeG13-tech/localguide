@@ -41,7 +41,7 @@ const StarRating: React.FC<{ rating?: number; count?: number }> = ({ rating = 0,
   );
 };
 
-const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactNode; isTextarea?: boolean; isLink?: boolean; isHtml?: boolean }> = ({ label, value, icon, isTextarea = false, isLink = false, isHtml = false }) => {
+const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactNode; isTextarea?: boolean; isLink?: boolean; isHtml?: boolean; showWordCount?: boolean; }> = ({ label, value, icon, isTextarea = false, isLink = false, isHtml = false, showWordCount = false }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = () => {
@@ -49,6 +49,17 @@ const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactN
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
+
+    const countWords = (htmlString: string): number => {
+        if (!htmlString) return 0;
+        // Strip HTML tags, replace with space to handle cases like <p>word</p><p>word</p>
+        const textOnly = htmlString.replace(/<[^>]*>/g, ' ');
+        // Normalize whitespace and split by any number of spaces
+        const words = textOnly.trim().split(/\s+/).filter(Boolean); // filter(Boolean) removes empty strings
+        return words.length;
+    };
+    
+    const wordCount = showWordCount ? countWords(value) : 0;
 
     const InputComponent = isTextarea ? 'textarea' : 'input';
 
@@ -59,22 +70,29 @@ const CopyableField: React.FC<{ label: string; value: string; icon: React.ReactN
                 <span>{label}</span>
             </label>
             <div className="flex items-center gap-2">
-                 {isHtml ? (
-                    <div
-                        className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg shadow-sm text-sm"
-                        style={{minHeight: '120px', maxHeight: '240px', overflowY: 'auto'}}
-                        dangerouslySetInnerHTML={{ __html: value }}
-                    />
-                ) : (
-                    <InputComponent
-                        type="text"
-                        readOnly
-                        value={value}
-                        rows={isTextarea ? 5 : undefined}
-                        className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition font-mono text-sm"
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                    />
-                )}
+                 <div className="relative w-full">
+                    {isHtml ? (
+                        <div
+                            className="w-full px-3 pt-2 pb-7 bg-slate-100 border border-slate-300 rounded-lg shadow-sm text-sm"
+                            style={{minHeight: '120px', maxHeight: '240px', overflowY: 'auto'}}
+                            dangerouslySetInnerHTML={{ __html: value }}
+                        />
+                    ) : (
+                        <InputComponent
+                            type="text"
+                            readOnly
+                            value={value}
+                            rows={isTextarea ? 5 : undefined}
+                            className="w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition font-mono text-sm"
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                    )}
+                    {showWordCount && (
+                        <span className="absolute bottom-2 right-3 text-xs font-mono text-slate-500 bg-slate-100/80 backdrop-blur-sm px-1.5 py-0.5 rounded-md border border-slate-200/50 pointer-events-none">
+                            {wordCount} mots
+                        </span>
+                    )}
+                </div>
                  {isLink && value && (
                     <a
                         href={value}
@@ -115,7 +133,7 @@ const BusinessEntry: React.FC<{ business: GeneratedBusinessInfo; index: number; 
             <CopyableField label="Téléphone" value={business.phone} icon={<PhoneIcon />} />
             {business.website && <CopyableField label="Site Web" value={business.website} icon={<GlobeAltIcon />} isLink />}
             <CopyableField label="Extrait" value={business.extract} icon={<DocumentTextIcon />} isTextarea />
-            <CopyableField label="Description" value={business.description} icon={<AlignLeftIcon />} isHtml />
+            <CopyableField label="Description" value={business.description} icon={<AlignLeftIcon />} isHtml showWordCount />
              <div className="pt-4 border-t border-slate-200">
                 <button
                     onClick={() => onOpenBrief(business)}
@@ -244,7 +262,7 @@ const RecommencerModal: React.FC<{
         className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           <div className="p-6 border-b border-slate-200">
             <h3 id="recommencer-modal-title" className="text-xl font-bold text-slate-800">Affiner votre recherche</h3>
             <p className="text-sm text-slate-500 mt-1">Guidez l'IA pour trouver les partenaires les plus pertinents.</p>
