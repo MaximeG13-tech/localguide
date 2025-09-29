@@ -2,8 +2,14 @@ import React, { useState } from 'react';
 import { UserBusinessInfo } from '../types';
 
 interface UserInputFormProps {
-  onSubmit: (info: Omit<UserBusinessInfo, 'websitePreference'> & { websitePreference: 'with' | 'without' | 'mix' }) => void;
+  onSubmit: (info: UserBusinessInfo) => void;
 }
+
+const websiteOptions = [
+    { id: 'mix', label: 'Mix' },
+    { id: 'with', label: 'Avec' },
+    { id: 'without', label: 'Sans' },
+] as const;
 
 const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
   const [name, setName] = useState('');
@@ -132,13 +138,7 @@ const UserInputForm: React.FC<UserInputFormProps> = ({ onSubmit }) => {
                 Présence de site internet
             </label>
             <div className="grid grid-cols-3 gap-2 rounded-lg bg-slate-100 p-1">
-                {(
-                    [
-                        { id: 'mix', label: 'Mix' },
-                        { id: 'with', label: 'Avec' },
-                        { id: 'without', label: 'Sans' },
-                    ] as const
-                ).map((option) => (
+                {websiteOptions.map((option) => (
                     <div key={option.id}>
                         <input
                             type="radio"

@@ -9,6 +9,7 @@ import { generateLocalGuide } from './services/geminiService';
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.USER_INFO);
   const [generatedGuide, setGeneratedGuide] = useState<LocalGuide | null>(null);
+  const [lastUserInfo, setLastUserInfo] = useState<UserBusinessInfo | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -31,10 +32,11 @@ const App: React.FC = () => {
   }, []);
 
   const handleUserInfoSubmit = async (info: UserBusinessInfo) => {
+    setLastUserInfo(info);
     setIsLoading(true);
     setError(null);
     setGeneratedGuide(null);
-    setLoadingMessage("L'IA analyse votre demande...");
+    setLoadingMessage("Initialisation du processus IA...");
     setProgress(0);
     setGenerationTime(null);
     clearProgressInterval();
@@ -42,7 +44,7 @@ const App: React.FC = () => {
     const startTime = Date.now();
 
     // Start a smooth, continuous progress simulation from 0 to 99
-    const estimatedDuration = Math.max(20, info.linkCount * 1.8) * 1000; // 1.8s per link, min 20s
+    const estimatedDuration = Math.max(20, info.linkCount * 2.5) * 1000; // 2.5s per link, min 20s
     const totalSteps = 99;
     const stepInterval = estimatedDuration / totalSteps;
 
@@ -57,11 +59,12 @@ const App: React.FC = () => {
       });
     }, stepInterval);
     
-    setLoadingMessage("Génération des partenaires par l'IA...");
-
+    const progressCallback = (message: string) => {
+      setLoadingMessage(message);
+    };
 
     try {
-      const guide = await generateLocalGuide(info);
+      const guide = await generateLocalGuide(info, progressCallback);
       const endTime = Date.now();
       setGenerationTime(endTime - startTime);
 
@@ -91,44 +94,46 @@ const App: React.FC = () => {
     setProgress(0);
     setGenerationTime(null);
     clearProgressInterval();
+    setLastUserInfo(null);
   };
 
-  const renderContent = () => {
-    if (isLoading || step === AppStep.DISPLAY_GUIDE && !generatedGuide && !error) {
-      return <Loader message={loadingMessage} progress={progress} />;
-    }
-    
-    if (error) {
-        return (
-            <div className="text-center p-8 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                <h3 className="text-xl font-bold mb-4">Erreur</h3>
-                <p>{error}</p>
-                <button
-                    onClick={handleReset}
-                    className="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300"
-                >
-                    Recommencer
-                </button>
-            </div>
-        );
-    }
-
-    switch (step) {
-      case AppStep.USER_INFO:
-        return <UserInputForm onSubmit={handleUserInfoSubmit} />;
-      case AppStep.DISPLAY_GUIDE:
-        return generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} generationTime={generationTime} /> : null;
-      default:
-        return <UserInputForm onSubmit={handleUserInfoSubmit} />;
+  const handleRegenerate = (newLinkCount: number) => {
+    if (lastUserInfo) {
+      const newInfo = { ...lastUserInfo, linkCount: newLinkCount };
+      handleUserInfoSubmit(newInfo);
     }
   };
+
+  let content;
+  if (isLoading) {
+    content = <Loader message={loadingMessage} progress={progress} />;
+  } else if (error) {
+    content = (
+      <div className="text-center p-8 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+        <h3 className="text-xl font-bold mb-4">Erreur</h3>
+        <p>{error}</p>
+        <button
+          onClick={handleReset}
+          className="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300"
+        >
+          Recommencer
+        </button>
+      </div>
+    );
+  } else if (step === AppStep.DISPLAY_GUIDE) {
+    content = generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} onRegenerate={handleRegenerate} userInfo={lastUserInfo} generationTime={generationTime} /> : null;
+  } else {
+    // Default to USER_INFO step
+    content = <UserInputForm onSubmit={handleUserInfoSubmit} />;
+  }
+
 
   return (
     <div className="min-h-screen text-slate-800">
       <Header />
       <main className="container mx-auto px-4 py-8 md:py-12">
         <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
-            {renderContent()}
+            {content}
         </div>
       </main>
       <footer className="text-center py-6 text-slate-500 text-sm">

@@ -1,111 +1,284 @@
 import { GoogleGenAI } from "@google/genai";
 import { UserBusinessInfo, LocalGuide, GeneratedBusinessInfo } from '../types';
 
+// IMPORTANT: Clé d'API pour les services Google Maps (Geocoding & Places).
+// Pour des raisons de sécurité, dans une application de production, cette clé devrait être
+// stockée dans une variable d'environnement et non directement dans le code.
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDdKwnuHNK0kBd5huGBtRtE_lBBHYEM16s';
+
+// Source: https://developers.google.com/maps/documentation/places/web-service/place-types (TABLE 1)
+// This set contains ONLY the types that are valid for SEARCH requests in the Places API v1.
+// Types like 'general_contractor' or 'architectural_designer_office' are NOT searchable.
+const VALID_SEARCHABLE_PLACE_TYPES = new Set([
+    'accounting', 'airport', 'amusement_park', 'aquarium', 'art_gallery', 'atm',
+    'bakery', 'bank', 'bar', 'beauty_salon', 'bicycle_store', 'book_store',
+    'bowling_alley', 'bus_station', 'cafe', 'campground', 'car_dealer',
+    'car_rental', 'car_repair', 'car_wash', 'casino', 'cemetery', 'church',
+    'city_hall', 'clothing_store', 'convenience_store', 'courthouse', 'dentist',
+    'department_store', 'doctor', 'drugstore', 'electrician', 'electronics_store',
+    'embassy', 'fire_station', 'florist', 'funeral_home', 'furniture_store',
+    'gas_station', 'gym', 'hair_care', 'hardware_store', 'hindu_temple',
+    'home_goods_store', 'hospital', 'insurance_agency', 'jewelry_store',
+    'laundry', 'lawyer', 'library', 'light_rail_station', 'liquor_store',
+    'local_government_office', 'locksmith', 'lodging', 'meal_delivery',
+    'meal_takeaway', 'mosque', 'movie_rental', 'movie_theater', 'moving_company',
+    'museum', 'night_club', 'painter', 'park', 'parking', 'pet_store',
+    'pharmacy', 'physiotherapist', 'plumber', 'police', 'post_office',
+    'primary_school', 'real_estate_agency', 'restaurant', 'rv_park', 'school',
+    'secondary_school', 'shoe_store', 'shopping_mall', 'spa', 'stadium',
+    'storage', 'store', 'subway_station', 'supermarket', 'synagogue',
+    'taxi_stand', 'tourist_attraction', 'train_station', 'transit_station',
+    'travel_agency', 'university', 'veterinary_care', 'zoo'
+]);
+
+
+/**
+ * Géocode une adresse postale en coordonnées latitude/longitude.
+ * @param address L'adresse à géocoder.
+ * @returns Une promesse résolue avec un objet { lat, lng }.
+ */
+const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number }> => {
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${GOOGLE_MAPS_API_KEY}&language=fr`;
+  try {
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.status !== 'OK') {
+      const errorMessage = `Erreur de géocodage - ${data.status}:\n${data.error_message || 'Aucun détail supplémentaire.'} \nLa requête à l'API Google Geocoding a été refusée. Cela est généralement dû à un problème de configuration de la clé d'API. Veuillez vérifier les points suivants dans votre console Google Cloud : 1) L'API "Geocoding API" est bien activée. 2) La facturation est bien activée pour votre projet. 3) La clé d'API n'a pas de restrictions (IP, domaine) qui bloqueraient la requête.`;
+      throw new Error(errorMessage);
+    }
+    return data.results[0].geometry.location;
+  } catch (error) {
+    console.error("Erreur lors de l'appel à l'API Geocoding:", error);
+    throw new Error(`L'adresse fournie n'a pas pu être localisée. Veuillez la vérifier. Détails: ${error instanceof Error ? error.message : String(error)}`);
+  }
+};
+
+/**
+ * Extracts a JSON string from a text that might be wrapped in markdown code blocks.
+ * @param text The raw text from the AI model.
+ * @returns A clean JSON string.
+ */
+const extractJson = (text: string): string => {
+    const trimmedText = text.trim();
+    
+    // Attempt to find JSON within markdown code blocks (```json ... ``` or ``` ... ```)
+    const match = trimmedText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (match && match[1]) {
+        return match[1].trim();
+    }
+
+    // If no markdown block is found, assume the whole string is the JSON.
+    if (trimmedText.startsWith('[') || trimmedText.startsWith('{')) {
+        return trimmedText;
+    }
+
+    // If we can't find a clear JSON structure, we can't proceed.
+    console.error("Réponse de l'IA non conforme (JSON non trouvé):", text);
+    throw new Error("Impossible d'extraire une chaîne JSON valide de la réponse de l'IA.");
+};
+
+
 export const generateLocalGuide = async (
-  userInfo: UserBusinessInfo
+  userInfo: UserBusinessInfo,
+  onProgress: (message: string) => void
 ): Promise<LocalGuide> => {
-    // Initialize Gemini AI client
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-    const websitePreferenceText = {
-      'with': 'Les entreprises doivent OBLIGATOIREMENT avoir un site internet.',
-      'without': 'Les entreprises ne doivent OBLIGATOIREMENT PAS avoir de site internet.',
-      'mix': 'Tu peux inclure un mélange d\'entreprises avec et sans site internet.'
-    }[userInfo.websitePreference];
+  // --- Étape 1: Géocodage de l'adresse ---
+  onProgress("Vérification de l'adresse du client...");
+  console.log("Étape 1: Géocodage de l'adresse...");
+  const location = await geocodeAddress(userInfo.partnerSearchAddress);
+  console.log(`Coordonnées obtenues:`, location);
 
-    // Step 1: Construct the prompt for finding businesses
-    const prompt = `
-    **PRIORITÉ ABSOLUE : ZÉRO HALLUCINATION. LA VÉRACITÉ EST NON-NÉGOCIABLE.**
-    Tu es un assistant de recherche expert chargé de trouver des entreprises **RÉELLES ET VÉRIFIABLES**. Ta mission est d'une importance capitale. Chaque information que tu fournis, en particulier le nom, l'adresse et le numéro de SIRET, doit correspondre à une entité légale existante en France. **INVENTER UNE ENTREPRISE, UNE ADRESSE, OU UN NUMÉRO DE SIRET EST UN ÉCHEC TOTAL DE LA TÂCHE.**
+  // --- Étape 2: L'IA définit une stratégie de recherche ---
+  onProgress("L'IA définit une stratégie de recherche...");
+  console.log("Étape 2: L'IA définit les catégories de recherche...");
+  const getCategoriesPrompt = `
+    **MISSION:** Tu es un stratège en marketing local. Ton objectif est d'identifier les meilleures catégories d'entreprises partenaires pour mon activité, à utiliser avec l'API Google Places.
+    
+    **CONTEXTE DE MON ENTREPRISE:**
+    - Nom: "${userInfo.name}"
+    - Activité: "${userInfo.description}"
+    
+    **TACHES:**
+    1. Analyse mon activité et identifie des types de partenaires commerciaux complémentaires, non-concurrents.
+    2. Choisis entre 3 et 5 catégories pertinentes dans la liste fournie pour maximiser les chances de trouver des résultats variés.
 
-    **MISSION :**
-    Je suis l'entreprise "${userInfo.name}" (${userInfo.description}). Trouve pour moi des entreprises partenaires potentielles. Ces partenaires doivent être situés dans un rayon de ${userInfo.partnerSearchRadius} km autour de l'adresse suivante : "${userInfo.partnerSearchAddress}".
+    **RÈGLES CRITIQUES :**
+    1. Tu dois **OBLIGATOIREMENT et EXCLUSIVEMENT** choisir des catégories dans la liste des types valides fournie ci-dessous.
+    2. Ne retourne **AUCUNE** catégorie qui n'est pas textuellement présente dans cette liste. N'invente rien.
+    3. Si une catégorie idéale (comme "architecte" ou "paysagiste") n'est pas dans la liste, tu dois choisir la catégorie valide la plus proche ou la plus pertinente (ex: "home_goods_store", "store", "florist").
 
-    **PROCESSUS DE VÉRIFICATION OBLIGATOIRE POUR CHAQUE ENTREPRISE :**
-    Pour chaque entreprise que tu identifies, tu dois suivre ces étapes SANS EXCEPTION :
-    1.  **VÉRIFICATION DE L'EXISTENCE :** Utilise la recherche Google pour confirmer que l'entreprise existe réellement à l'adresse indiquée. Cherche son site officiel ou sa fiche Google Business Profile.
-    2.  **VÉRIFICATION DU SIRET :** C'est l'étape la plus critique. Tu dois trouver le numéro de SIRET à 14 chiffres de l'entreprise. Utilise des recherches comme "[Nom de l'entreprise] [Ville] SIRET". **Si tu ne trouves PAS de numéro de SIRET valide et vérifiable, tu dois IMPÉRATIVEMENT abandonner cette entreprise et en chercher une autre.**
-    3.  **COLLECTE DES DONNÉES :** Uniquement APRÈS avoir vérifié l'existence ET le SIRET, collecte les informations ci-dessous.
+    **LISTE DES CATÉGORIES VALIDES AUTORISÉES :**
+    ${JSON.stringify(Array.from(VALID_SEARCHABLE_PLACE_TYPES))}
+    
+    **FORMAT DE SORTIE ATTENDU:**
+    Retourne UNIQUEMENT un tableau JSON valide contenant les chaînes de caractères choisies. Exemple: ["plumber", "electrician", "hardware_store"]`;
 
-    **RÈGLES D'EXCLUSION STRICTES (À APPLIQUER APRÈS LA VÉRIFICATION) :**
-    - **NON-CONCURRENCE :** Les entreprises ne doivent pas être des concurrents de mon activité : "${userInfo.description}".
-    - **PAS DE SECTEUR PUBLIC :** Aucune administration, mairie, collectivité, etc.
-    - **TPE/PME UNIQUEMENT :** Exclus les grands groupes, ETI, GE, et multinationales. Concentre-toi sur les artisans, commerces locaux, TPE et PME.
-    - **PRÉSENCE DE SITE WEB :** ${websitePreferenceText}
+  let categories: string[];
+  try {
+    const categoryResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: getCategoriesPrompt
+    });
+    const parsableCategoryString = extractJson(categoryResponse.text);
+    const suggestedCategories: string[] = JSON.parse(parsableCategoryString);
+    console.log(`Catégories suggérées par l'IA:`, suggestedCategories);
+    
+    // Filter against the valid list to ensure API call safety
+    categories = suggestedCategories.filter(category => VALID_SEARCHABLE_PLACE_TYPES.has(category));
 
-    **FORMAT DES DONNÉES REQUISES (POUR CHAQUE ENTREPRISE VÉRIFIÉE) :**
-    - name: Le nom légal complet de l'entreprise.
-    - address: L'adresse postale complète, exacte et vérifiée.
-    - phone: Le numéro de téléphone principal.
-    - siret: Le numéro de SIRET à 14 chiffres, **vérifié et non-inventé**.
-    - city: Le secteur, formaté ainsi : "[Ville] ([Code Postal]) [préposition] [Département]". La préposition doit être choisie en fonction du département, en suivant IMPÉRATIVEMENT les règles grammaticales françaises suivantes :
-        - en Île-de-France, en Corrèze, en Dordogne, en Savoie, en Haute-Savoie, en Guadeloupe, en Martinique, en Guyane
-        - à La Réunion, à Mayotte
-        - dans l'Ain, dans l'Aisne, dans l’Allier, etc. (la majorité des cas)
-        - dans les Alpes-de-Haute-Provence, dans les Hautes-Alpes, etc. (pour les pluriels)
-        Exemples de format attendu : "Besançon (25000) dans le Doubs" ou "Annecy (74000) en Haute-Savoie". Cette information doit être déduite de l'adresse complète.
-    - activity: Une phrase courte décrivant l'activité principale et la spécialité.
-    - extract: Un résumé de 2-3 phrases (environ 160 caractères), pour une méta-description.
-    - description: Une description détaillée (2-3 paragraphes) au format HTML, utilisant des balises <p>.
-    - website: L'URL complète du site internet de l'entreprise. Si elle n'en a pas, retourne une chaîne vide "".
-    - googleBusinessProfileLink: Le lien direct vers la fiche d'établissement Google (Google Business Profile). Si non trouvé, retourne une chaîne vide "".
-    - managerPhone: Le numéro de téléphone direct du gérant, si trouvable publiquement. Sinon, retourne une chaîne vide "".
+    if (categories.length === 0) {
+        console.error("Aucune des catégories suggérées par l'IA n'est valide.", suggestedCategories);
+        throw new Error(`L'IA n'a pas réussi à identifier de catégories de recherche valides. Les suggestions étaient : ${suggestedCategories.join(', ') || 'aucune'}. Veuillez réessayer.`);
+    }
 
-    **QUANTITÉ ET QUALITÉ : UN REQUIS ABSOLU :**
-    Tu DOIS trouver **exactement ${userInfo.linkCount}** entreprises. Ce nombre n'est pas une suggestion, c'est un impératif.
-    Chacune de ces ${userInfo.linkCount} entreprises doit passer le processus de vérification strict (existence réelle + SIRET valide). Il n'y a aucune exception.
-    Si tu as des difficultés à trouver le nombre requis d'entreprises qui satisfont aux critères, tu dois persévérer, étendre ta recherche, ou essayer des requêtes différentes. Ne retourne JAMAIS une liste incomplète. Ne retourne JAMAIS une entreprise non vérifiée pour atteindre le quota. Ta mission est de fournir une liste complète ET 100% fiable.
+  } catch (error) {
+    console.error("Erreur lors de l'analyse des catégories JSON de l'IA:", error);
+    throw new Error(`L'IA n'a pas retourné un format de catégorie valide. ${error instanceof Error ? error.message : ''}`);
+  }
+  console.log(`Catégories valides et filtrées:`, categories);
 
-    **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Le tableau ne doit contenir que les objets des entreprises, sans aucun autre texte, explication ou formatage.
+  // --- Étape 3: Recherche des entreprises à proximité via l'API Google Places ---
+  onProgress("Recherche des entreprises partenaires à proximité...");
+  console.log("Étape 3: Recherche via Google Places API...");
+  const placesUrl = 'https://places.googleapis.com/v1/places:searchNearby';
+  const placesResponse = await fetch(placesUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+      'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.websiteUri,places.googleMapsUri,places.rating,places.userRatingCount'
+    },
+    body: JSON.stringify({
+      includedTypes: categories,
+      maxResultCount: Math.min(20, userInfo.linkCount + 5), // Fetch a bit more to allow filtering
+      locationRestriction: {
+        circle: {
+          center: { latitude: location.lat, longitude: location.lng },
+          radius: userInfo.partnerSearchRadius * 1000,
+        },
+      },
+      languageCode: "fr",
+      rankPreference: "DISTANCE"
+    }),
+  });
+  
+  if (!placesResponse.ok) {
+     const errorBody = await placesResponse.json();
+     const errorMessage = `Erreur de recherche Google Places - ${errorBody.error.message || 'Erreur inconnue'}. Veuillez vérifier que l'API "Places API" est activée dans votre console Google Cloud et que votre clé est valide.`;
+     throw new Error(errorMessage);
+  }
+  const placesData = await placesResponse.json();
+  console.log(`${placesData.places?.length || 0} entreprises trouvées par Google Places.`);
+
+  if (!placesData.places || placesData.places.length === 0) {
+    throw new Error("Aucune entreprise partenaire n'a été trouvée dans le périmètre défini avec les catégories suggérées par l'IA. Essayez d'élargir le rayon de recherche.");
+  }
+  
+  let foundPartners: Partial<GeneratedBusinessInfo>[] = placesData.places.map((place: any) => ({
+    name: place.displayName?.text,
+    address: place.formattedAddress,
+    phone: place.internationalPhoneNumber,
+    website: place.websiteUri,
+    googleMapsUri: place.googleMapsUri,
+    rating: place.rating,
+    userRatingCount: place.userRatingCount,
+  })).filter(Boolean);
+
+  // Filtrage selon la préférence de site web
+  if (userInfo.websitePreference === 'with') {
+    foundPartners = foundPartners.filter(p => p.website);
+  } else if (userInfo.websitePreference === 'without') {
+    foundPartners = foundPartners.filter(p => !p.website);
+  }
+  
+  // Limiter au nombre demandé
+  foundPartners = foundPartners.slice(0, userInfo.linkCount);
+  
+  if (foundPartners.length === 0) {
+      throw new Error("Aucune entreprise ne correspond à votre critère de 'présence de site internet' après la recherche initiale. Essayez l'option 'Mix'.");
+  }
+
+
+  // --- Étape 4: Enrichir en masse les entreprises trouvées avec un second appel IA ---
+  onProgress(`Enrichissement de ${foundPartners.length} entreprises...`);
+  console.log(`Étape 4: Enrichissement de ${foundPartners.length} entreprises par l'IA...`);
+  const businessesToEnrich = foundPartners.map(p => ({
+    name: p.name,
+    address: p.address,
+    phone: p.phone || 'Non fourni',
+    website: p.website || 'Non fourni',
+  }));
+
+  const batchEnrichmentPrompt = `
+    **MISSION :** Tu es un assistant de rédaction et de recherche administrative. Ta mission est d'enrichir une liste de données d'entreprises avec du contenu rédactionnel et des numéros de SIRET.
+    **CONTEXTE DE MON ENTREPRISE :** "${userInfo.description}". Tu dois adapter le ton et le contenu pour que les descriptions des partenaires soient pertinentes pour mes clients.
+
+    **DONNÉES (Source: Google Places API) - Liste JSON en entrée :**
+    ${JSON.stringify(businessesToEnrich, null, 2)}
+
+    **TACHES À ACCOMPLIR :**
+    Pour CHAQUE entreprise de la liste, tu dois accomplir les tâches suivantes :
+    1.  **RECHERCHE SIRET (CRITIQUE) :** Trouve le numéro de SIRET à 14 chiffres via une recherche Google. C'est la priorité. Si introuvable, retourne une chaîne vide "". **NE JAMAIS INVENTER UN SIRET.**
+    2.  **RÉDACTION :** Rédige les champs suivants:
+        - **activity:** Une phrase courte (10-15 mots) décrivant l'activité principale et la spécialité.
+        - **city:** Le secteur, formaté ainsi : "[Ville] ([Code Postal]) [préposition] [Département]". Trouve le code postal et le département à partir de l'adresse fournie. La préposition doit suivre les règles grammaticales françaises (ex: "en Dordogne", "dans le Doubs", "à La Réunion").
+        - **extract:** Un résumé de 2-3 phrases (environ 160 caractères), optimisé pour le SEO local.
+        - **description:** Une description détaillée (2-3 paragraphes) au format HTML, utilisant des balises <p>.
+    3.  **INFO CONTACT (Optionnel) :** Trouve le numéro direct du gérant, si trouvable publiquement. Sinon, chaîne vide "".
+
+    **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Chaque objet du tableau doit correspondre à une entreprise de la liste d'entrée et contenir les clés : \`siret\`, \`activity\`, \`city\`, \`extract\`, \`description\`, \`managerPhone\`. L'ordre des objets dans ton tableau de sortie doit CORRESPONDRE EXACTEMENT à l'ordre des entreprises dans la liste d'entrée. N'ajoute aucun commentaire.
     `;
-
-    // Step 2: Call Gemini API with Google Search grounding
-    let jsonString: string;
+    
+    let enrichedDataArray: any[] = [];
     try {
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                tools: [{googleSearch: {}}],
-            },
+            contents: batchEnrichmentPrompt,
+            config: { tools: [{ googleSearch: {} }] }
         });
-        jsonString = response.text;
-    } catch(error) {
-        console.error("Erreur de l'API Gemini:", error);
-        throw new Error(`Une erreur est survenue lors de la communication avec l'API Gemini. Détails : ${error instanceof Error ? error.message : String(error)}`);
-    }
 
-    // Step 3: Parse and return the response
-    if (!jsonString || jsonString.trim() === '') {
-        throw new Error("La réponse de l'API Gemini est vide. Il est possible qu'aucune entreprise vérifiable correspondant à vos critères n'ait été trouvée.");
-    }
-    
-    try {
-        // The response might be wrapped in ```json ... ```, so we need to extract it.
-        const jsonMatch = jsonString.match(/```json\s*([\s\S]*?)\s*```/);
-        const parsableString = jsonMatch ? jsonMatch[1] : jsonString;
-
-        const generatedGuide: LocalGuide = JSON.parse(parsableString);
-
-        if (!Array.isArray(generatedGuide)) {
-            throw new Error(`La réponse de l'IA n'est pas un tableau JSON valide. Reçu: ${typeof generatedGuide}`);
-        }
+        const parsableString = extractJson(response.text);
+        enrichedDataArray = JSON.parse(parsableString);
         
-        // This validation is less critical now due to the strict prompt, but good to keep.
-        if (generatedGuide.length > 0) {
-            const firstItem = generatedGuide[0];
-            const requiredKeys: (keyof GeneratedBusinessInfo)[] = ["name", "address", "city", "activity", "extract", "description", "phone", "website", "googleBusinessProfileLink", "managerPhone", "siret"];
-            for (const key of requiredKeys) {
-                if (!(key in firstItem)) {
-                    throw new Error(`La réponse de l'IA est malformée. La clé '${key}' est manquante dans le premier objet.`);
-                }
-            }
+        if (enrichedDataArray.length !== foundPartners.length) {
+            console.warn("Avertissement: L'IA n'a pas retourné le même nombre d'objets enrichis que d'entreprises trouvées. Le guide pourrait être incomplet.");
         }
-        
-        return generatedGuide;
-    } catch (e) {
-        console.error("Erreur de parsing JSON:", e);
-        console.error("Réponse brute de l'IA:", jsonString);
-        throw new Error("La réponse de l'IA n'a pas pu être traitée. Le format JSON est peut-être incorrect. Consultez la console pour plus de détails.");
+
+    } catch (error) {
+        console.error(`Erreur d'enrichissement de l'IA (Étape 4 - Batch):`, error);
+        throw new Error("L'IA n'a pas pu enrichir les données des entreprises. Le format de sa réponse était peut-être incorrect ou le JSON était malformé.");
     }
+
+  // --- Étape 5: Fusionner les données ---
+  onProgress("Finalisation du guide...");
+  console.log("Étape 5: Finalisation du guide...");
+  const finalGuide: LocalGuide = foundPartners.map((partner, index) => {
+    const enrichedData = enrichedDataArray[index];
+    if (!enrichedData) return null;
+
+    return {
+        name: partner.name || 'Nom non trouvé',
+        address: partner.address || 'Adresse non trouvée',
+        phone: partner.phone || '',
+        website: partner.website || undefined,
+        googleMapsUri: partner.googleMapsUri || undefined,
+        rating: partner.rating || undefined,
+        userRatingCount: partner.userRatingCount || undefined,
+        activity: enrichedData.activity || '',
+        city: enrichedData.city || '',
+        extract: enrichedData.extract || '',
+        description: enrichedData.description || '<p>Description non disponible.</p>',
+        siret: enrichedData.siret || undefined,
+        managerPhone: enrichedData.managerPhone || undefined,
+    };
+  }).filter(item => item !== null) as LocalGuide;
+
+  if (finalGuide.length === 0) {
+    throw new Error("L'enrichissement par l'IA a échoué pour toutes les entreprises trouvées. Impossible de générer le guide.");
+  }
+
+  return finalGuide;
 };

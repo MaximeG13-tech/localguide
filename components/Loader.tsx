@@ -6,52 +6,26 @@ interface LoaderProps {
 }
 
 const Loader: React.FC<LoaderProps> = ({ message, progress = 0 }) => {
-  // Keyframes CSS for the block animation, injected directly for component-specific styling.
-  const keyframes = `
-    @keyframes loader {
-      0% {
-        transform: scale(1);
-        box-shadow: 0 0 40px rgb(53, 143, 246);
-      }
-      13% {
-        transform: scale(1, 4);
-        box-shadow: 0 0 60px rgb(53, 143, 246);
-      }
-      26% {
-        transform: scale(1);
-        box-shadow: 0 0 40px rgb(53, 143, 246);
-      }
-    }
-  `;
-
   return (
     <div className="flex flex-col items-center justify-center p-20 text-center">
-      <style>{keyframes}</style>
-      
-      {/* Loader Animation Container */}
-      <div className="relative flex items-center justify-center w-20 h-20">
-        <div className="flex items-center justify-center">
-          {Array.from({ length: 24 }).map((_, i) => (
-            <div
-              key={i}
-              className="inline-block w-[8px] h-[10px] m-[2px] bg-blue-500 shadow-[0_0_30px_rgb(53,143,246)]"
-              style={{
-                animation: `loader 5s infinite`,
-                animationDelay: `${(i + 1) * 0.2}s`,
-              }}
-            ></div>
-          ))}
+      {/* Simple Tailwind Spinner */}
+      <div className="relative w-24 h-24">
+        {/* Background circle */}
+        <div className="absolute inset-0 border-4 border-blue-200 rounded-full"></div>
+        {/* Spinning arc */}
+        <div 
+          className="absolute inset-0 border-4 border-t-blue-600 rounded-full animate-spin"
+          style={{ animationDuration: '1.5s' }}
+        ></div>
+        {/* Percentage Display in the center */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-3xl font-bold text-blue-600 transition-all duration-500">
+            {Math.round(progress)}%
+          </span>
         </div>
       </div>
       
-      {/* Percentage Display below the loader */}
-      <div className="mt-6">
-        <span className="text-3xl font-bold text-blue-600 transition-all duration-500">
-          {Math.round(progress)}%
-        </span>
-      </div>
-
-      <h2 className="mt-6 text-xl font-semibold text-slate-700">{message || "Génération en cours..."}</h2>
+      <h2 className="mt-8 text-xl font-semibold text-slate-700">{message || "Génération en cours..."}</h2>
       <p className="mt-2 text-slate-500">L'IA analyse vos données et rédige votre guide. Cela peut prendre un moment.</p>
     </div>
   );

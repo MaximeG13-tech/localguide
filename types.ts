@@ -21,7 +21,9 @@ export interface GeneratedBusinessInfo {
   description: string;   // Description
   phone: string;         // Numéro de téléphone
   website?: string;
-  googleBusinessProfileLink?: string;
+  googleMapsUri?: string; // URI direct vers Google Maps
+  rating?: number;        // Note Google (ex: 4.5)
+  userRatingCount?: number; // Nombre d'avis
   managerPhone?: string;
   siret?: string;
 }
