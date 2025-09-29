@@ -4,13 +4,14 @@ import UserInputForm from './components/UserInputForm';
 import GuideDisplay from './components/GuideDisplay';
 import Header from './components/Header';
 import Loader from './components/Loader';
-import { generateLocalGuide } from './services/geminiService';
+import { generateLocalGuide, generateB2BCategorySuggestions } from './services/geminiService';
 
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.USER_INFO);
   const [generatedGuide, setGeneratedGuide] = useState<LocalGuide | null>(null);
   const [lastUserInfo, setLastUserInfo] = useState<UserBusinessInfo | null>(null);
   const [lastUsedCategories, setLastUsedCategories] = useState<string[] | null>(null);
+  const [b2bSuggestions, setB2bSuggestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadingMessage, setLoadingMessage] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +70,13 @@ const App: React.FC = () => {
     };
 
     try {
-      const { guide, categoriesUsed } = await generateLocalGuide(info, progressCallback, excludeCategories, userFeedback);
+      // Run guide generation and suggestion generation in parallel for efficiency
+      const guidePromise = generateLocalGuide(info, progressCallback, excludeCategories, userFeedback);
+      const suggestionsPromise = generateB2BCategorySuggestions(info.description);
+      
+      const [guideResult, suggestions] = await Promise.all([guidePromise, suggestionsPromise]);
+
+      const { guide, categoriesUsed } = guideResult;
       const endTime = Date.now();
       setGenerationTime(endTime - startTime);
 
@@ -79,14 +86,15 @@ const App: React.FC = () => {
       setLoadingMessage("Guide généré avec succès !");
       setGeneratedGuide(guide);
       setLastUsedCategories(categoriesUsed);
+      setB2bSuggestions(suggestions);
       setStep(AppStep.DISPLAY_GUIDE);
 
     } catch (err) {
       console.error(err);
       setError(err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la génération du guide.");
-    } finally {
-      // The interval is cleared in success/error path, but this is a final safeguard.
+      // On error, still clear interval but don't set progress to 100
       clearProgressInterval();
+    } finally {
       setIsLoading(false);
     }
   };
@@ -102,6 +110,7 @@ const App: React.FC = () => {
     clearProgressInterval();
     setLastUserInfo(null);
     setLastUsedCategories(null);
+    setB2bSuggestions([]);
   };
 
   const handleRecommencer = (newLinkCount: number, feedback: string) => {
@@ -129,7 +138,7 @@ const App: React.FC = () => {
       </div>
     );
   } else if (step === AppStep.DISPLAY_GUIDE) {
-    content = generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} onRecommencer={handleRecommencer} userInfo={lastUserInfo} generationTime={generationTime} /> : null;
+    content = generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} onRecommencer={handleRecommencer} userInfo={lastUserInfo} generationTime={generationTime} suggestions={b2bSuggestions} /> : null;
   } else {
     // Default to USER_INFO step
     content = <UserInputForm onSubmit={handleUserInfoSubmit} />;

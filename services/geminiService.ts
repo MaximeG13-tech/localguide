@@ -79,6 +79,35 @@ const extractJson = (text: string): string => {
 };
 
 
+/**
+ * Generates B2B category suggestions based on user's business description.
+ * @param businessDescription The user's business description.
+ * @returns A promise resolving to an array of string suggestions.
+ */
+export const generateB2BCategorySuggestions = async (businessDescription: string): Promise<string[]> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const prompt = `
+      Basé sur la description de cette activité : "${businessDescription}", suggère 5 types de partenaires commerciaux B2B pertinents et non-concurrents.
+      Pense à des métiers qui pourraient être des apporteurs d'affaires.
+      Par exemple, pour un vendeur de camping-cars, des suggestions comme "Campings", "Aires de service", "Garages spécialisés" seraient pertinentes.
+      
+      Retourne UNIQUEMENT un tableau JSON valide contenant 5 chaînes de caractères.
+      Exemple de format de sortie: ["Architectes", "Plombiers", "Électriciens", "Agences immobilières", "Paysagistes"]
+    `;
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt
+        });
+        const jsonString = extractJson(response.text);
+        return JSON.parse(jsonString);
+    } catch (error) {
+        console.error("Erreur lors de la génération des suggestions de catégories B2B:", error);
+        return []; // Return empty array on failure
+    }
+};
+
+
 export const generateLocalGuide = async (
   userInfo: UserBusinessInfo,
   onProgress: (message: string) => void,
@@ -88,14 +117,16 @@ export const generateLocalGuide = async (
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   // --- Étape 1: Géocodage de l'adresse ---
-  onProgress("Vérification de l'adresse du client...");
+  onProgress("Localisation de l'adresse de recherche...");
   console.log("Étape 1: Géocodage de l'adresse...");
   const location = await geocodeAddress(userInfo.partnerSearchAddress);
   console.log(`Coordonnées obtenues:`, location);
+  onProgress("Analyse de votre activité pour définir une stratégie...");
 
   // --- Boucle de recherche principale pour garantir le nombre de résultats ---
   const finalQualifiedProspects: LocalGuide = [];
   const allUsedCategories = new Set<string>(excludeCategories || []);
+  const addedBusinessIdentifiers = new Set<string>(); // For deduplication
   const MAX_ATTEMPTS = 5; // Limite de sécurité pour éviter les boucles infinies
   let currentAttempt = 0;
 
@@ -105,6 +136,7 @@ export const generateLocalGuide = async (
     onProgress(`Recherche de partenaires... (Essai ${currentAttempt}/${MAX_ATTEMPTS})`);
 
     // --- Étape 2: L'IA définit une stratégie de recherche ---
+     onProgress(`Demande à l'IA de choisir les catégories de partenaires les plus pertinentes...`);
     const getCategoriesPrompt = `
       **MISSION:** Tu es un stratège en marketing local. Ton objectif est d'identifier les meilleures catégories d'entreprises partenaires pour mon activité, à utiliser avec l'API Google Places.
       
@@ -121,7 +153,7 @@ export const generateLocalGuide = async (
       2. Ne retourne **AUCUNE** catégorie qui n'est pas textuellement présente dans cette liste. N'invente rien.
       3. Si une catégorie idéale (comme "architecte" ou "paysagiste") n'est pas dans la liste, tu dois choisir la catégorie valide la plus proche ou la plus pertinente (ex: "home_goods_store", "store", "florist").
       ${allUsedCategories.size > 0 ? `4. **EXCLUSION :** La liste suivante contient des catégories déjà utilisées. NE CHOISIS AUCUNE de ces catégories : ${JSON.stringify(Array.from(allUsedCategories))}` : ''}
-      ${userFeedback ? `5. **FEEDBACK UTILISATEUR SUR LA RECHERCHE PRÉCÉDENTE :** "${userFeedback}". Utilise impérativement ce retour pour affiner ta nouvelle sélection de catégories et éviter les types d'entreprises mentionnés.` : ''}
+      ${userFeedback ? `5. **FEEDBACK UTILISATEUR SUR LA RECHERCHE PRÉCÉDENTE :** "${userFeedback}". Utilise impérativement ce retour pour affiner ta nouvelle sélection de catégories. Si des activités sont suggérées (ex: "Feedback Suggéré: Architectes, Plombiers"), traduis-les en catégories valides de la liste et priorise-les.` : ''}
 
       **LISTE DES CATÉGORIES VALIDES AUTORISÉES :**
       ${JSON.stringify(Array.from(VALID_SEARCHABLE_PLACE_TYPES))}
@@ -152,9 +184,10 @@ export const generateLocalGuide = async (
       throw new Error(`L'IA n'a pas retourné un format de catégorie valide. ${error instanceof Error ? error.message : ''}`);
     }
     console.log(`(Essai ${currentAttempt}) Catégories valides et filtrées utilisées pour cette recherche:`, newCategories);
+     onProgress(`Catégories reçues: ${newCategories.join(', ')}. Lancement de la recherche...`);
 
     // --- Étape 3: Recherche des entreprises à proximité via l'API Google Places ---
-    onProgress(`Recherche d'entreprises pour les catégories: ${newCategories.join(', ')}...`);
+    onProgress(`Contact de l'API Google Places pour trouver des entreprises locales...`);
     const placesUrl = 'https://places.googleapis.com/v1/places:searchNearby';
     const placesResponse = await fetch(placesUrl, {
       method: 'POST',
@@ -181,13 +214,22 @@ export const generateLocalGuide = async (
     }
     const placesData = await placesResponse.json();
     console.log(`(Essai ${currentAttempt}) ${placesData.places?.length || 0} entreprises trouvées par Google Places.`);
+     onProgress(`${placesData.places?.length || 0} lieux trouvés. Filtrage initial...`);
 
     if (!placesData.places || placesData.places.length === 0) {
       console.log(`(Essai ${currentAttempt}) Aucune entreprise trouvée pour ces catégories, on continue avec d'autres.`);
       continue; // Passe à l'itération suivante pour essayer d'autres catégories
     }
+
+    const userBusinessNameLower = userInfo.name.toLowerCase();
     
-    const foundPartners: Partial<GeneratedBusinessInfo>[] = placesData.places.map((place: any) => ({
+    const foundPartners: Partial<GeneratedBusinessInfo>[] = placesData.places
+    .filter((place: any) => {
+        // --- FILTRE D'AUTO-EXCLUSION ---
+        const placeNameLower = place.displayName?.text?.toLowerCase();
+        return placeNameLower !== userBusinessNameLower;
+    })
+    .map((place: any) => ({
       name: place.displayName?.text,
       address: place.formattedAddress,
       phone: place.internationalPhoneNumber,
@@ -197,8 +239,14 @@ export const generateLocalGuide = async (
       userRatingCount: place.userRatingCount,
     })).filter(Boolean);
 
+
+    if (foundPartners.length === 0) {
+        console.log(`(Essai ${currentAttempt}) Aucune entreprise restante après le filtre d'auto-exclusion.`);
+        continue;
+    }
+
     // --- Étape 4: Enrichir et filtrer en masse les entreprises trouvées avec un second appel IA ---
-    onProgress(`Analyse et enrichissement de ${foundPartners.length} entreprises... (${finalQualifiedProspects.length}/${userInfo.linkCount} trouvés)`);
+    onProgress(`Enrichissement de ${foundPartners.length} entreprises via l'IA... (${finalQualifiedProspects.length}/${userInfo.linkCount} validés)`);
     const businessesToEnrich = foundPartners.map(p => ({
       name: p.name,
       address: p.address,
@@ -215,14 +263,15 @@ export const generateLocalGuide = async (
 
       **TACHES À ACCOMPLIR :**
       Pour CHAQUE entreprise de la liste, tu dois accomplir les tâches suivantes :
-      1.  **ÉVALUATION COMMERCIALE (CRITIQUE) :** Ajoute une clé booléenne \`isProspectable\`. Mets la valeur à \`false\` si l'entreprise est clairement un grand groupe, une chaîne nationale/internationale, une franchise, une banque, une assurance, une grande surface ou une administration publique (ex: 'Société Générale', 'Carrefour', 'AXA', 'La Poste'). Mets \`true\` pour toutes les autres (artisans, TPE, PME, commerces indépendants, professions libérales).
-      2.  **RECHERCHE SIRET :** Trouve le numéro de SIRET à 14 chiffres. Si introuvable, retourne une chaîne vide "". **NE JAMAIS INVENTER UN SIRET.**
-      3.  **RÉDACTION (uniquement si \`isProspectable\` est \`true\`) :**
-          - **activity:** Une phrase courte (10-15 mots) décrivant l'activité principale et la spécialité.
-          - **city:** Le secteur, formaté ainsi : "[Ville] ([Code Postal]) [préposition] [Département]". Trouve le code postal et le département.
+      1.  **NOM DE L'ENTREPRISE :** Utilise **EXACTEMENT** le nom fourni en entrée. Ne le modifie jamais.
+      2.  **ÉVALUATION COMMERCIALE (CRITIQUE) :** Ajoute une clé booléenne \`isProspectable\`. Mets la valeur à \`false\` si l'entreprise est clairement un grand groupe, une chaîne nationale/internationale, une franchise, une banque, une assurance, une grande surface ou une administration publique (ex: 'Société Générale', 'Carrefour', 'AXA', 'La Poste'). Mets \`true\` pour toutes les autres (artisans, TPE, PME, commerces indépendants, professions libérales).
+      3.  **RECHERCHE SIRET :** Trouve le numéro de SIRET à 14 chiffres. Si introuvable, retourne une chaîne vide "". **NE JAMAIS INVENTER UN SIRET.**
+      4.  **RÉDACTION (uniquement si \`isProspectable\` est \`true\`) :**
+          - **activity:** Une phrase complète et fluide décrivant l'activité principale et la spécialité. **RÈGLES STRICTES :** 1) La phrase ne doit contenir **AUCUNE ponctuation** (pas de virgules, points, tirets, etc.). 2) La phrase doit **OBLIGATOIREMENT** se terminer par la préposition " à". Exemple: 'Agence de voyages locale spécialisée dans les séjours sur mesure et les lunes de miel à'.
+          - **city:** Le secteur, formaté ainsi : "[Ville] ([Code Postal]) dans le/la/les [Département]". Trouve le code postal et le département.
           - **extract:** Un résumé de 2-3 phrases (environ 160 caractères), optimisé pour le SEO local.
           - **description:** Une description détaillée (2-3 paragraphes) au format HTML, utilisant des balises <p>.
-      4.  **INFO CONTACT (Optionnel) :** Trouve le numéro direct du gérant, si trouvable publiquement. Sinon, chaîne vide "".
+      5.  **INFO CONTACT (Optionnel) :** Trouve le numéro direct du gérant, si trouvable publiquement. Sinon, chaîne vide "".
 
       **FORMAT DE SORTIE FINAL :** Tu dois retourner UNIQUEMENT un tableau JSON valide. Chaque objet du tableau doit correspondre à une entreprise de la liste d'entrée et contenir les clés : \`isProspectable\`, \`siret\`, \`activity\`, \`city\`, \`extract\`, \`description\`, \`managerPhone\`. L'ordre des objets dans ton tableau de sortie doit CORRESPONDRE EXACTEMENT à l'ordre des entreprises dans la liste d'entrée. N'ajoute aucun commentaire.
       `;
@@ -234,6 +283,7 @@ export const generateLocalGuide = async (
               contents: batchEnrichmentPrompt,
               config: { tools: [{ googleSearch: {} }] }
           });
+          onProgress(`Données enrichies reçues. Fusion et filtrage des prospects non qualifiés...`);
           const parsableString = extractJson(response.text);
           enrichedDataArray = JSON.parse(parsableString);
       } catch (error) {
@@ -263,9 +313,21 @@ export const generateLocalGuide = async (
           managerPhone: enrichedData.managerPhone || undefined,
       };
     }).filter(item => item !== null) as LocalGuide;
+
+    // --- DEDUPLICATION ---
+    const uniqueProspectsInBatch = qualifiedProspectsFromBatch.filter(prospect => {
+        if (!prospect.name || !prospect.address) return false;
+        const identifier = `${prospect.name.toLowerCase().trim()}|${prospect.address.toLowerCase().trim()}`;
+        if (addedBusinessIdentifiers.has(identifier)) {
+            console.log(`(Essai ${currentAttempt}) Doublon trouvé et ignoré: ${prospect.name}`);
+            return false;
+        }
+        addedBusinessIdentifiers.add(identifier);
+        return true;
+    });
     
-    finalQualifiedProspects.push(...qualifiedProspectsFromBatch);
-    console.log(`(Essai ${currentAttempt}) ${qualifiedProspectsFromBatch.length} prospects qualifiés ajoutés. Total actuel: ${finalQualifiedProspects.length}/${userInfo.linkCount}.`);
+    finalQualifiedProspects.push(...uniqueProspectsInBatch);
+    console.log(`(Essai ${currentAttempt}) ${uniqueProspectsInBatch.length} prospects qualifiés UNIQUES ajoutés. Total actuel: ${finalQualifiedProspects.length}/${userInfo.linkCount}.`);
   }
 
   // --- Finalisation après la boucle ---

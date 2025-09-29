@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LocalGuide, GeneratedBusinessInfo, UserBusinessInfo } from '../types';
+import { generateB2BCategorySuggestions } from '../services/geminiService';
+
 
 interface GuideDisplayProps {
   guide: LocalGuide;
@@ -7,6 +9,7 @@ interface GuideDisplayProps {
   onRecommencer: (newLinkCount: number, feedback: string) => void;
   userInfo: UserBusinessInfo | null;
   generationTime: number | null;
+  suggestions: string[];
 }
 
 // Icon Components
@@ -201,70 +204,130 @@ const RecommencerModal: React.FC<{
   onClose: () => void;
   onSubmit: (newLinkCount: number, feedback: string) => void;
   defaultLinkCount: number;
-}> = ({ isOpen, onClose, onSubmit, defaultLinkCount }) => {
+  suggestions: string[];
+}> = ({ isOpen, onClose, onSubmit, defaultLinkCount, suggestions }) => {
   const [linkCount, setLinkCount] = useState(defaultLinkCount);
   const [feedback, setFeedback] = useState('');
+  const [selectedSuggestions, setSelectedSuggestions] = useState<string[]>([]);
 
   if (!isOpen) return null;
 
+  const handleSuggestionClick = (suggestion: string) => {
+    setSelectedSuggestions(prev => 
+      prev.includes(suggestion) 
+        ? prev.filter(s => s !== suggestion)
+        : [...prev, suggestion]
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(linkCount, feedback);
+    let combinedFeedback = '';
+    if (selectedSuggestions.length > 0) {
+      combinedFeedback += `Feedback Suggéré: ${selectedSuggestions.join(', ')}. `;
+    }
+    if (feedback.trim()) {
+      combinedFeedback += `Commentaire: ${feedback.trim()}`;
+    }
+    onSubmit(linkCount, combinedFeedback.trim());
   };
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4"
+      className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 transition-opacity"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
+      aria-labelledby="recommencer-modal-title"
     >
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg"
+        className="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <form onSubmit={handleSubmit}>
-          <div className="p-6 border-b">
-            <h3 className="text-xl font-bold text-slate-800">Relancer la Génération</h3>
-            <p className="text-sm text-slate-500 mt-1">Ajustez la recherche et donnez des instructions à l'IA.</p>
+          <div className="p-6 border-b border-slate-200">
+            <h3 id="recommencer-modal-title" className="text-xl font-bold text-slate-800">Affiner votre recherche</h3>
+            <p className="text-sm text-slate-500 mt-1">Guidez l'IA pour trouver les partenaires les plus pertinents.</p>
           </div>
-          <div className="p-6 space-y-4">
-            <div>
-              <label htmlFor="modalLinkCount" className="block text-sm font-medium text-slate-700">
-                Nombre d'entreprises à générer
-              </label>
-              <select
-                id="modalLinkCount"
-                value={linkCount}
-                onChange={(e) => setLinkCount(Number(e.target.value))}
-                className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
-              >
-                <option value="1">1</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="feedback" className="block text-sm font-medium text-slate-700">
-                Instructions pour l'IA (optionnel)
-              </label>
-              <textarea
-                id="feedback"
-                rows={4}
-                value={feedback}
-                onChange={(e) => setFeedback(e.target.value)}
-                className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
-                placeholder="Ex: Il y a trop d'électriciens, je veux plus d'artisans ou de commerces de bouche."
-              />
-            </div>
+          <div className="p-6 md:p-8 space-y-8 overflow-y-auto">
+            
+            <fieldset>
+              <legend className="block text-base font-semibold text-slate-800 mb-3">
+                1. Suggestions de partenaires
+              </legend>
+              <div className="p-4 bg-slate-50 rounded-lg">
+                <div className="flex flex-wrap gap-2">
+                  {suggestions.length > 0 ? (
+                    suggestions.map(s => {
+                      const suggestionText = s.length > 50 ? `${s.substring(0, 47)}...` : s;
+                      return (
+                        <button
+                          type="button"
+                          key={s}
+                          onClick={() => handleSuggestionClick(s)}
+                          className={`px-3 py-1.5 text-sm font-semibold rounded-full transition-all duration-200 ${
+                            selectedSuggestions.includes(s)
+                              ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
+                              : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                          }`}
+                          title={s}
+                        >
+                          {suggestionText}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="text-sm text-slate-500 w-full text-center py-2">L'IA n'a pas de suggestions pour le moment.</div>
+                  )}
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend className="block text-base font-semibold text-slate-800 mb-3">
+                2. Vos instructions (optionnel)
+              </legend>
+              <div>
+                <label htmlFor="feedback" className="block text-sm font-medium text-slate-600 mb-1">
+                  Ajoutez un commentaire pour orienter la recherche.
+                </label>
+                <textarea
+                  id="feedback"
+                  rows={3}
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition"
+                  placeholder="Ex: 'Je veux plus d'artisans', 'Évite les agences immobilières'..."
+                />
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend className="block text-base font-semibold text-slate-800 mb-3">
+                3. Nombre d'entreprises à générer
+              </legend>
+              <div>
+                <select
+                  id="modalLinkCount"
+                  value={linkCount}
+                  onChange={(e) => setLinkCount(Number(e.target.value))}
+                  className="block w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 transition bg-white"
+                >
+                  <option value="1">1 Entreprise</option>
+                  <option value="10">10 Entreprises</option>
+                  <option value="20">20 Entreprises</option>
+                  <option value="50">50 Entreprises</option>
+                </select>
+              </div>
+            </fieldset>
+
           </div>
-          <div className="p-4 bg-slate-50 border-t flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-5 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition">
+          <div className="p-4 bg-slate-100 border-t border-slate-200 flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-5 py-2 bg-white border border-slate-300 text-slate-800 font-semibold rounded-lg hover:bg-slate-50 transition shadow-sm">
               Annuler
             </button>
-            <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
-              Relancer
+            <button type="submit" className="px-5 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm">
+              Relancer la génération
             </button>
           </div>
         </form>
@@ -274,10 +337,10 @@ const RecommencerModal: React.FC<{
 };
 
 
-const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommencer, userInfo, generationTime }) => {
+const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommencer, userInfo, generationTime, suggestions }) => {
   const [modalBusiness, setModalBusiness] = useState<GeneratedBusinessInfo | null>(null);
   const [isRecommencerModalOpen, setIsRecommencerModalOpen] = useState(false);
-
+  
   const handleExportJson = () => {
     const dataStr = JSON.stringify(guide, null, 2);
     const blob = new Blob([dataStr], { type: "application/json" });
@@ -324,6 +387,7 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommenc
         onClose={() => setIsRecommencerModalOpen(false)}
         onSubmit={handleRecommencerSubmit}
         defaultLinkCount={userInfo?.linkCount || 10}
+        suggestions={suggestions}
       />
       <div className="p-4 md:p-8 bg-slate-100">
           <div className="text-center mb-8">
@@ -365,7 +429,7 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommenc
           {/* --- Business List --- */}
           <div>
             {guide.map((business, index) => (
-              <BusinessEntry key={index} business={business} index={index} onOpenBrief={setModalBusiness} />
+              <BusinessEntry key={`${business.siret || business.name}-${index}`} business={business} index={index} onOpenBrief={setModalBusiness} />
             ))}
           </div>
       </div>
