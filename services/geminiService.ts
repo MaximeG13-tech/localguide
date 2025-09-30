@@ -301,7 +301,7 @@ export const generateLocalGuide = async (
           return null;
       }
       return {
-          name: partner.name || 'Nom non trouvé',
+          name: `- ${partner.name || 'Nom non trouvé'}`,
           address: partner.address || 'Adresse non trouvée',
           phone: partner.phone || '',
           website: partner.website || undefined,
