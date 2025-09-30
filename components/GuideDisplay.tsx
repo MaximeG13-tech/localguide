@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { LocalGuide, GeneratedBusinessInfo, UserBusinessInfo } from '../types';
 
@@ -50,7 +51,7 @@ const CopyableField: React.FC<{ label: string; value: string; isTextarea?: boole
                  <div className="relative w-full">
                     {isHtml ? (
                         <div
-                            className="w-full px-3 pt-2 pb-7 bg-slate-100 border border-slate-300 rounded-lg shadow-sm text-sm"
+                            className="w-full px-3 pt-2 pb-7 bg-slate-100 border border-slate-300 rounded-lg shadow-sm text-sm text-justify"
                             style={{minHeight: '120px', maxHeight: '240px', overflowY: 'auto'}}
                             dangerouslySetInnerHTML={{ __html: value }}
                         />
@@ -147,7 +148,7 @@ const CommercialBriefModal: React.FC<{ business: GeneratedBusinessInfo | null; o
           </div>
           <div>
             <h4 className="font-bold text-slate-700 mb-1">Contexte de l'entreprise</h4>
-            <div className="text-sm text-slate-600 space-y-2" dangerouslySetInnerHTML={{ __html: business.description || 'Non fourni.' }}></div>
+            <div className="text-sm text-slate-600 space-y-2 text-justify" dangerouslySetInnerHTML={{ __html: business.description || 'Non fourni.' }}></div>
           </div>
           <div>
             <h4 className="font-bold text-slate-700 mb-1">Site Web</h4>
