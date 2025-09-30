@@ -1,3 +1,5 @@
+// FIX: Removed incorrect import from './App' which was causing a circular dependency and declaration merging errors for 'AppStep'.
+// The 'AppStep' enum is defined in this file and should be the single source of truth.
 export enum AppStep {
   USER_INFO,
   DISPLAY_GUIDE,
