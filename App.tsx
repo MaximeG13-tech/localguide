@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AppStep, UserBusinessInfo, LocalGuide } from './types';
+import { AppStep, UserBusinessInfo, LocalGuide, GeneratedBusinessInfo } from './types';
 import UserInputForm from './components/UserInputForm';
 import GuideDisplay from './components/GuideDisplay';
 import Header from './components/Header';
@@ -7,36 +7,27 @@ import Loader from './components/Loader';
 import CategorySelectionModal from './components/CategorySelectionModal';
 import { generateLocalGuide, generateB2BCategorySuggestions, generateInitialCategorySuggestions } from './services/geminiService';
 
+interface ProgressState {
+  message: string;
+  percentage: number;
+}
+
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.USER_INFO);
-  const [generatedGuide, setGeneratedGuide] = useState<LocalGuide | null>(null);
+  const [generatedGuide, setGeneratedGuide] = useState<LocalGuide>([]);
   const [lastUserInfo, setLastUserInfo] = useState<UserBusinessInfo | null>(null);
   const [lastUsedCategories, setLastUsedCategories] = useState<string[] | null>(null);
   const [b2bSuggestions, setB2bSuggestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [loadingMessage, setLoadingMessage] = useState<string>('');
+  const [progressState, setProgressState] = useState<ProgressState>({ message: '', percentage: 0 });
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<number>(0);
   const [generationTime, setGenerationTime] = useState<number | null>(null);
   
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [initialSuggestions, setInitialSuggestions] = useState<string[]>([]);
   const [isRegenerating, setIsRegenerating] = useState(false);
   
-  const progressIntervalRef = useRef<number | null>(null);
-
-  const clearProgressInterval = () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      clearProgressInterval();
-    };
-  }, []);
+  const generationAbortController = useRef<AbortController | null>(null);
 
   const handleStartGenerationProcess = async (
     info: UserBusinessInfo,
@@ -47,68 +38,66 @@ const App: React.FC = () => {
     setLastUserInfo(info);
     setIsLoading(true);
     setError(null);
-    setGeneratedGuide(null);
-    setLoadingMessage("Initialisation du processus IA...");
-    setProgress(0);
+    setGeneratedGuide([]); // Start with an empty array for streaming results
     setGenerationTime(null);
-    clearProgressInterval();
-    
-    const startTime = Date.now();
-    
-    const estimatedDuration = Math.max(20, info.linkCount * 2.5) * 1000;
-    const totalSteps = 99;
-    const stepInterval = estimatedDuration / totalSteps;
+    setStep(AppStep.DISPLAY_GUIDE); // Switch to display view immediately to show results as they come in
 
-    progressIntervalRef.current = window.setInterval(() => {
-      setProgress(prev => {
-        const next = prev + 1;
-        if (next >= totalSteps) {
-          clearProgressInterval();
-          return totalSteps;
-        }
-        return next;
-      });
-    }, stepInterval);
+    const startTime = Date.now();
+    generationAbortController.current = new AbortController();
     
-    const progressCallback = (message: string) => {
-      setLoadingMessage(message);
+    const progressCallback = (progress: ProgressState) => {
+      setProgressState(progress);
+    };
+
+    const businessVerifiedCallback = (business: GeneratedBusinessInfo) => {
+        setGeneratedGuide(prevGuide => [...prevGuide, business]);
     };
 
     try {
-      const guidePromise = generateLocalGuide(info, progressCallback, {
-        initialCategories,
-        excludeCategories,
-        userFeedback
-      });
-      const suggestionsPromise = generateB2BCategorySuggestions(info.description);
+      const { guide, categoriesUsed } = await generateLocalGuide(
+        info,
+        progressCallback,
+        businessVerifiedCallback,
+        { initialCategories, excludeCategories, userFeedback },
+        generationAbortController.current.signal
+      );
       
-      const [guideResult, suggestions] = await Promise.all([guidePromise, suggestionsPromise]);
-
-      const { guide, categoriesUsed } = guideResult;
+      const suggestions = await generateB2BCategorySuggestions(info.description);
+      
       const endTime = Date.now();
       setGenerationTime(endTime - startTime);
       
-      clearProgressInterval();
-      setProgress(100);
-      setLoadingMessage("Guide généré avec succès !");
-      setGeneratedGuide(guide);
       setLastUsedCategories(categoriesUsed);
       setB2bSuggestions(suggestions);
-      setStep(AppStep.DISPLAY_GUIDE);
+      setProgressState({ message: `Génération terminée. ${guide.length} partenaires trouvés.`, percentage: 100 });
 
     } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la génération du guide.");
-      clearProgressInterval();
+      if (err.name === 'AbortError') {
+        setError("La génération a été annulée.");
+      } else {
+        console.error(err);
+        setError(err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la génération du guide.");
+      }
     } finally {
-      setIsLoading(false);
+      // Keep loading state true on display page until finished, but allow interaction.
+      // A different state like 'isGenerating' might be better.
+      // For now, we use the progress percentage to know when it's done.
     }
   };
+
+  const handleStopGeneration = () => {
+    if (generationAbortController.current) {
+        generationAbortController.current.abort();
+    }
+    setIsLoading(false); // Or set a new state 'isCancelling'
+    setProgressState({ message: "Annulation en cours...", percentage: progressState.percentage });
+  };
+
 
   const handleUserInfoSubmit = async (info: UserBusinessInfo) => {
     setIsLoading(true);
     setError(null);
-    setLoadingMessage("Analyse de votre activité pour suggérer des partenaires...");
+    setProgressState({ message: "Analyse de votre activité pour suggérer des partenaires...", percentage: 0 });
     setLastUserInfo(info);
 
     try {
@@ -120,14 +109,13 @@ const App: React.FC = () => {
         setError("Impossible de générer les suggestions de catégories. Veuillez réessayer.");
     } finally {
         setIsLoading(false);
-        setLoadingMessage('');
+        setProgressState({ message: "", percentage: 0 });
     }
   };
 
   const handleCategoriesSelected = (selectedCategories: string[]) => {
     setIsCategoryModalOpen(false);
     if (lastUserInfo && selectedCategories.length > 0) {
-      // Le nombre de liens à générer est maintenant basé sur la sélection de l'utilisateur.
       const infoWithCorrectedCount = { ...lastUserInfo, linkCount: selectedCategories.length };
       handleStartGenerationProcess(infoWithCorrectedCount, selectedCategories);
     }
@@ -140,7 +128,6 @@ const App: React.FC = () => {
       const suggestions = await generateInitialCategorySuggestions(lastUserInfo.description, lastUserInfo.linkCount);
       setInitialSuggestions(suggestions);
     } catch (err) {
-      // Gérer l'erreur, peut-être avec un toast/notification dans le futur
       console.error("Failed to regenerate suggestions", err);
     } finally {
       setIsRegenerating(false);
@@ -148,18 +135,18 @@ const App: React.FC = () => {
   };
 
   const handleReset = () => {
+    if (isLoading) handleStopGeneration();
     setStep(AppStep.USER_INFO);
-    setGeneratedGuide(null);
+    setGeneratedGuide([]);
     setError(null);
     setIsLoading(false);
-    setLoadingMessage('');
-    setProgress(0);
+    setProgressState({ message: '', percentage: 0 });
     setGenerationTime(null);
-    clearProgressInterval();
     setLastUserInfo(null);
     setLastUsedCategories(null);
     setB2bSuggestions([]);
     setInitialSuggestions([]);
+    sessionStorage.clear(); // Clear cache on new guide
   };
   
   const handleRecommencer = (newLinkCount: number, feedback: string) => {
@@ -169,28 +156,43 @@ const App: React.FC = () => {
     }
   };
   
+  const renderContent = () => {
+      if (step === AppStep.DISPLAY_GUIDE) {
+        return (
+            <GuideDisplay
+                guide={generatedGuide}
+                onReset={handleReset}
+                onRecommencer={handleRecommencer}
+                userInfo={lastUserInfo}
+                generationTime={generationTime}
+                suggestions={b2bSuggestions}
+                isLoading={progressState.percentage < 100}
+                progressState={progressState}
+                onStop={handleStopGeneration}
+            />
+        );
+      }
+      
+      if (isLoading) {
+          return <Loader message={progressState.message} progress={progressState.percentage} />;
+      }
 
-  let content;
-  if (isLoading) {
-    content = <Loader message={loadingMessage} progress={progress} />;
-  } else if (error) {
-    content = (
-      <div className="text-center p-8 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-        <h3 className="text-xl font-bold mb-4">Erreur</h3>
-        <p>{error}</p>
-        <button
-          onClick={handleReset}
-          className="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300"
-        >
-          Recommencer
-        </button>
-      </div>
-    );
-  } else if (step === AppStep.DISPLAY_GUIDE) {
-    content = generatedGuide ? <GuideDisplay guide={generatedGuide} onReset={handleReset} onRecommencer={handleRecommencer} userInfo={lastUserInfo} generationTime={generationTime} suggestions={b2bSuggestions} /> : null;
-  } else {
-    // Default to USER_INFO step
-    content = <UserInputForm onSubmit={handleUserInfoSubmit} />;
+      if (error) {
+          return (
+              <div className="text-center p-8 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                  <h3 className="text-xl font-bold mb-4">Erreur</h3>
+                  <p>{error}</p>
+                  <button
+                      onClick={handleReset}
+                      className="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300"
+                  >
+                      Recommencer
+                  </button>
+              </div>
+          );
+      }
+
+      return <UserInputForm onSubmit={handleUserInfoSubmit} />;
   }
 
   return (
@@ -198,7 +200,7 @@ const App: React.FC = () => {
       <Header />
       <main className="container mx-auto px-4 py-8 md:py-12">
         <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
-            {content}
+            {renderContent()}
         </div>
       </main>
       <CategorySelectionModal 
@@ -210,7 +212,7 @@ const App: React.FC = () => {
         isRegenerating={isRegenerating}
       />
       <footer className="text-center py-6 text-slate-500">
-        <p>Générateur de Guide Local IA - V1.0</p>
+        <p>Générateur de Guide Local IA - V1.1 Performance</p>
       </footer>
     </div>
   );

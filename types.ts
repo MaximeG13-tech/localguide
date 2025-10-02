@@ -27,6 +27,7 @@ export interface GeneratedBusinessInfo {
   userRatingCount?: number; // Nombre d'avis
   managerPhone?: string;
   siret?: string;
+  source?: string;        // Source of the data (e.g., "Google Search via Gemini API")
 }
 
 export type LocalGuide = GeneratedBusinessInfo[];

@@ -9,6 +9,9 @@ interface GuideDisplayProps {
   userInfo: UserBusinessInfo | null;
   generationTime: number | null;
   suggestions: string[];
+  isLoading: boolean;
+  progressState: { message: string, percentage: number };
+  onStop: () => void;
 }
 
 const StarRating: React.FC<{ rating?: number; count?: number }> = ({ rating = 0, count = 0 }) => {
@@ -178,6 +181,10 @@ const CommercialBriefModal: React.FC<{ business: GeneratedBusinessInfo | null; o
               <p className="text-sm text-slate-500">Non fourni.</p>
             )}
           </div>
+           <div>
+            <h4 className="font-bold text-slate-700 mb-1">Source des données</h4>
+            <p className="text-sm text-slate-500 italic">{business.source || 'Non spécifiée'}</p>
+          </div>
         </div>
         <div className="p-4 bg-slate-50 border-t border-slate-200 text-right">
           <button onClick={onClose} className="px-5 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition">
@@ -330,7 +337,7 @@ const RecommencerModal: React.FC<{
 };
 
 
-const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommencer, userInfo, generationTime, suggestions }) => {
+const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommencer, userInfo, generationTime, suggestions, isLoading, progressState, onStop }) => {
   const [modalBusiness, setModalBusiness] = useState<GeneratedBusinessInfo | null>(null);
   const [isRecommencerModalOpen, setIsRecommencerModalOpen] = useState(false);
   
@@ -384,39 +391,58 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommenc
       />
       <div className="p-4 md:p-8 bg-slate-100">
           <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-slate-800">Votre Guide Local est Prêt !</h2>
-              <p className="text-slate-600 mt-2">Copiez chaque champ et collez-le dans votre back-office, ou exportez toutes les données.</p>
+              <h2 className="text-3xl font-bold text-slate-800">
+                {isLoading ? "Génération de votre guide..." : "Votre Guide Local est Prêt !"}
+              </h2>
+              <p className="text-slate-600 mt-2">
+                {isLoading ? "Les résultats vérifiés apparaissent ci-dessous en temps réel." : "Copiez chaque champ et collez-le dans votre back-office, ou exportez toutes les données."}
+              </p>
           </div>
           
-          {/* --- Contols Header --- */}
-          <div className="mb-8 space-y-4">
-              <div className="flex flex-col md:flex-row justify-center items-center gap-4 flex-wrap">
-                  <button
-                      onClick={handleExportJson}
-                      className="w-full md:w-auto inline-flex justify-center py-2 px-5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
-                  >
-                      Exporter en JSON
-                  </button>
-
-                  <button
-                    onClick={() => setIsRecommencerModalOpen(true)}
-                    className="inline-flex justify-center py-2 px-5 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
-                  >
-                      Recommencer...
-                  </button>
-
-                  <button
-                      onClick={onReset}
-                      className="w-full md:w-auto inline-flex justify-center py-2 px-5 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300"
-                  >
-                      Nouveau Guide
-                  </button>
-              </div>
-              {formattedTime && (
-                <p className="text-center text-sm text-slate-500 pt-2">
-                  {formattedTime}
-                </p>
-              )}
+          {/* --- Controls Header / Progress Bar --- */}
+          <div className="mb-8 p-4 bg-white rounded-lg shadow border">
+            {isLoading ? (
+               <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm font-semibold text-blue-700">{progressState.message}</span>
+                        <span className="text-sm font-bold text-slate-600">{Math.round(progressState.percentage)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2.5">
+                        <div className="bg-blue-600 h-2.5 rounded-full transition-all duration-500" style={{ width: `${progressState.percentage}%` }}></div>
+                    </div>
+                    <div className="text-center pt-2">
+                      <button onClick={onStop} className="text-sm text-red-600 hover:underline">Annuler la génération</button>
+                    </div>
+               </div>
+            ) : (
+                <div className="space-y-4">
+                    <div className="flex flex-col md:flex-row justify-center items-center gap-4 flex-wrap">
+                        <button
+                            onClick={handleExportJson}
+                            className="w-full md:w-auto inline-flex justify-center py-2 px-5 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700"
+                        >
+                            Exporter en JSON
+                        </button>
+                        <button
+                          onClick={() => setIsRecommencerModalOpen(true)}
+                          className="inline-flex justify-center py-2 px-5 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white hover:bg-blue-50"
+                        >
+                            Affiner la recherche...
+                        </button>
+                        <button
+                            onClick={onReset}
+                            className="w-full md:w-auto inline-flex justify-center py-2 px-5 border border-slate-300 shadow-sm text-sm font-medium rounded-lg text-slate-700 bg-white hover:bg-slate-50"
+                        >
+                            Nouveau Guide
+                        </button>
+                    </div>
+                    {formattedTime && (
+                      <p className="text-center text-sm text-slate-500 pt-2">
+                        {formattedTime}
+                      </p>
+                    )}
+                </div>
+            )}
           </div>
           
           {/* --- Business List --- */}
@@ -424,6 +450,11 @@ const GuideDisplay: React.FC<GuideDisplayProps> = ({ guide, onReset, onRecommenc
             {guide.map((business, index) => (
               <BusinessEntry key={`${business.siret || business.name}-${index}`} business={business} index={index} onOpenBrief={setModalBusiness} />
             ))}
+            {guide.length === 0 && !isLoading && (
+              <div className="text-center p-8 bg-slate-50 rounded-lg">
+                <p className="text-slate-600">Aucune entreprise entièrement vérifiée n'a été trouvée pour ces critères.</p>
+              </div>
+            )}
           </div>
       </div>
     </>
