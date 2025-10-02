@@ -76,7 +76,15 @@ const App: React.FC = () => {
         setError("La génération a été annulée.");
       } else {
         console.error(err);
-        setError(err instanceof Error ? err.message : "Une erreur inconnue est survenue lors de la génération du guide.");
+        let errorMessage = "Une erreur inconnue est survenue lors de la génération du guide.";
+        if (err instanceof Error) {
+            if (err.message.includes('quota')) {
+                errorMessage = "Le quota d'utilisation de l'API a été dépassé. Veuillez réessayer plus tard ou vérifier les limites de votre clé API Google.";
+            } else {
+                errorMessage = err.message;
+            }
+        }
+        setError(errorMessage);
       }
     } finally {
       // Keep loading state true on display page until finished, but allow interaction.
@@ -97,16 +105,26 @@ const App: React.FC = () => {
   const handleUserInfoSubmit = async (info: UserBusinessInfo) => {
     setIsLoading(true);
     setError(null);
-    setProgressState({ message: "Analyse de votre activité pour suggérer des partenaires...", percentage: 0 });
+    setProgressState({ message: "Analyse de votre activité pour suggérer des partenaires...", percentage: 10 });
     setLastUserInfo(info);
 
     try {
+        // A small visual bump to show progress before the async call
+        setProgressState(prev => ({ ...prev, percentage: 50 }));
         const suggestions = await generateInitialCategorySuggestions(info.description, info.linkCount);
         setInitialSuggestions(suggestions);
         setIsCategoryModalOpen(true);
     } catch (err) {
         console.error(err);
-        setError("Impossible de générer les suggestions de catégories. Veuillez réessayer.");
+        let errorMessage = "Impossible de générer les suggestions de catégories. Veuillez réessayer.";
+        if (err instanceof Error) {
+            if (err.message.includes('quota')) {
+                errorMessage = "Le quota d'utilisation de l'API a été dépassé. Veuillez réessayer plus tard ou vérifier les limites de votre clé API Google.";
+            } else {
+                errorMessage = `Erreur: ${err.message}`;
+            }
+        }
+        setError(errorMessage);
     } finally {
         setIsLoading(false);
         setProgressState({ message: "", percentage: 0 });
